@@ -9,6 +9,19 @@ const { getStore } = require("@netlify/blobs");
    mette aussi celle-ci à jour : les deux ne sont pas reliées automatiquement. */
 const ADMIN_KEY = "AniimoFrance2026";
 
+/* La configuration automatique de Netlify Blobs (siteID/token injectés tout seuls)
+   n'est pas fiable sur tous les sites en ce moment. Si les variables d'environnement
+   BLOBS_SITE_ID et BLOBS_TOKEN sont définies (Site settings → Environment variables),
+   on les utilise explicitement ; sinon on retombe sur l'injection automatique. */
+function blobStore() {
+  var opts = { name: "aniimo-tiers", consistency: "strong" };
+  if (process.env.BLOBS_SITE_ID && process.env.BLOBS_TOKEN) {
+    opts.siteID = process.env.BLOBS_SITE_ID;
+    opts.token = process.env.BLOBS_TOKEN;
+  }
+  return getStore(opts);
+}
+
 function json(status, body) {
   return {
     statusCode: status,
@@ -66,7 +79,15 @@ function publicList(l) {
 }
 
 exports.handler = async function (event) {
-  var store = getStore({ name: "aniimo-tiers", consistency: "strong" });
+  try {
+    return await handleEvent(event);
+  } catch (e) {
+    return json(500, { ok: false, error: (e && e.name) || "erreur serveur", message: (e && e.message) || String(e) });
+  }
+};
+
+async function handleEvent(event) {
+  var store = blobStore();
 
   if (event.httpMethod === "GET") {
     var data = await loadData(store);
@@ -168,4 +189,4 @@ exports.handler = async function (event) {
   }
 
   return json(400, { ok: false, error: "action inconnue" });
-};
+}
