@@ -252,8 +252,6 @@ img.ico{border-radius:50%; object-fit:cover; background:var(--surface-2)}
   font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:2px 8px; border-radius:999px}
 .kv.mini{grid-template-columns:auto 1fr; font-size:12px; gap:2px 12px}
 .teamcard .tr{font-size:12.5px; color:var(--ink-2); margin:0}
-.teamcard .why{font-size:12px; color:var(--muted); margin:0; border-top:1px solid var(--line); padding-top:7px}
-.teamcard .why .lbl{display:block; font-size:9.5px; letter-spacing:.09em; text-transform:uppercase; margin-bottom:2px}
 .bul{margin:0; padding-left:18px; display:grid; gap:6px; font-size:13px}
 .bul li{padding-left:2px}
 .bul.good li::marker{color:#3FA45B}
@@ -677,7 +675,6 @@ table td .chip{margin:0 1px}
 .tcel{display:flex; flex-wrap:wrap; gap:3px; justify-content:center}
 .tcel .chip{font-size:9px; padding:1px 5px}
 .tcel .chip .elico{width:9px; height:9px}
-.tcwhy{font-size:9.5px; color:var(--ink-2); line-height:1.3; opacity:.85}
 
 /* étiquettes « Créer » / listes de visiteurs */
 .tierbtn.tiernew{border-color:var(--gold-line); border-width:2px; color:var(--gold-line); font-weight:700}
@@ -1133,9 +1130,6 @@ img,svg,video{max-width:100%}
   .tcard,.tcimg{width:86px}
   .tcimg{height:86px}
   .tcimg .ico{width:72px; height:72px}
-  /* la raison reste lisible sans étirer la bande sur dix lignes */
-  .tcwhy{font-size:9.5px; display:-webkit-box; -webkit-line-clamp:4;
-    -webkit-box-orient:vertical; overflow:hidden}
   .tbth{font-size:9.5px; padding:8px 6px}
 }
 @media (max-width:380px){
@@ -2599,7 +2593,6 @@ table.tight .ico{min-width:34px}
     var b = k ? bandByKey(k) : null;
     return b || (list ? null : tierOf(r.s, best));
   }
-  function whyOf(a) { return tWhy()[a.name] || kitLabel(a); }
 
   function viewTier() {
     var sel = view.tier, list = null;
@@ -2807,7 +2800,7 @@ table.tight .ico{min-width:34px}
     return '<div class="tcard' + (picked ? " picked" : "") + '"' +
       (edit ? ' draggable="true" data-drag="' + esc(a.name) + '"' : "") +
       ' title="' + esc(a.name + " — " + (KLAB[rr] || "Score") + " " + kv + " · score " + r.s +
-        " (stats " + r.stat + ", kit " + r.kit + ")\n" + whyOf(a)) + '">' +
+        " (stats " + r.stat + ", kit " + r.kit + ")") + '">' +
       '<div class="tcimg">' + (edit ? icon(a, 58) : aniLink(a, icon(a, 58))) +
       '<span class="tcpos">' + (ranked.indexOf(r) + 1) + "</span>" +
       (edit ? '<button type="button" class="tcinfo" data-ani="' + esc(a.name) +
@@ -2815,7 +2808,6 @@ table.tight .ico{min-width:34px}
       '<div class="tcname">' + (edit ? esc(a.name) : aniLink(a, esc(a.name))) + "</div>" +
       '<div class="tcel">' + a.elems.map(elemChip).join("") +
       (role === "ALL" ? roleChip(a.role) : "") + "</div>" +
-      '<div class="tcwhy">' + esc(whyOf(a)) + "</div>" +
       (list ? listVoteBar(list, a) : voteBar(a)) + "</div>";
   }
 
@@ -3755,7 +3747,6 @@ table.tight .ico{min-width:34px}
     h += '<div class="grid cards4' + animClass() + '" style="margin-top:14px">';
     T.members.forEach(function (a, mi) {
       var isMain = a.name === T.main.name;
-      var why = T.notes[a.name];
       var isPinned = pins().indexOf(a.name) >= 0;
       h += '<div class="card teamcard fxi' + (isMain ? " main" : "") + '" style="--i:' + mi + '">' +
         '<div class="icocell">' + aniLink(a, icon(a, 44)) + "<div><b>" + aniLink(a, esc(a.name)) + "</b>" +
@@ -3769,7 +3760,6 @@ table.tight .ico{min-width:34px}
         '<dl class="kv mini"><dt>ATK</dt><dd class="mono">' + a.atk + '</dd><dt>BREAK</dt><dd class="mono">' + a.brk +
         '</dd><dt>REGEN</dt><dd class="mono">' + a.regen + '</dd><dt>Meilleur coup</dt><dd class="mono">' + hit(a) + "</dd></dl>" +
         '<p class="tr">' + esc(a.traitFr || a.trait) + "</p>" +
-        (why && why.length ? '<p class="why"><span class="lbl">Pourquoi lui</span>' + esc(why.join(" · ")) + "</p>" : "") +
         "</div>";
     });
     h += "</div>";
