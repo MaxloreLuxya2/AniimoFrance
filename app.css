@@ -1208,15 +1208,9 @@ table.tight .ico{min-width:34px}
 .tab:active{transform:translateX(3px)}
 .tab[aria-current="true"]:hover{transform:translateX(4px)}
 /* la catégorie ouverte pétille en permanence, en rouge et bleu */
-.tablab{--sp-red:#FF4B57; --sp-blue:#4FA8FF; position:relative; display:inline-block}
-.tablab .shine{
-  background-image:linear-gradient(100deg,
-    var(--head-ink) 0%, var(--head-ink) 26%,
-    var(--sp-red) 38%, #FFFFFF 50%, var(--sp-blue) 62%,
-    var(--head-ink) 74%, var(--head-ink) 100%);
-  background-size:280% 100%; background-position:120% 0;
-  -webkit-background-clip:text; background-clip:text; color:transparent;
-}
+.tablab{position:relative; display:inline-block}
+:root{--sp-red:#FF4B57; --sp-blue:#4FA8FF; --sp-speed:2.1s; --sp-count:5}
+
 .tablab .sp{position:absolute; opacity:0; pointer-events:none}
 .tablab .sp svg{width:100%; height:100%; display:block; fill:currentColor}
 .tablab .sp1{left:2%;  top:-34%; width:9px;  height:9px;  color:var(--sp-red)}
@@ -1226,12 +1220,11 @@ table.tight .ico{min-width:34px}
 .tablab .sp5{left:64%; top:-30%; width:7px;  height:7px;  color:var(--sp-blue)}
 .tablab .sp{filter:drop-shadow(0 0 4px currentColor)}
 @media (prefers-reduced-motion:no-preference){
-  .tab[aria-current="true"] .tablab .shine{animation:headshine 2.4s ease-in-out infinite}
-  .tab[aria-current="true"] .tablab .sp1{animation:twinkle 2.1s ease-in-out infinite 0s}
-  .tab[aria-current="true"] .tablab .sp2{animation:twinkle 2.1s ease-in-out infinite .42s}
-  .tab[aria-current="true"] .tablab .sp3{animation:twinkle 2.1s ease-in-out infinite .84s}
-  .tab[aria-current="true"] .tablab .sp4{animation:twinkle 2.1s ease-in-out infinite 1.26s}
-  .tab[aria-current="true"] .tablab .sp5{animation:twinkle 2.1s ease-in-out infinite 1.68s}
+  .tab[aria-current="true"] .tablab .sp1{animation:twinkle var(--sp-speed) ease-in-out infinite calc(var(--sp-speed) * 0.00)}
+  .tab[aria-current="true"] .tablab .sp2{animation:twinkle var(--sp-speed) ease-in-out infinite calc(var(--sp-speed) * 0.20)}
+  .tab[aria-current="true"] .tablab .sp3{animation:twinkle var(--sp-speed) ease-in-out infinite calc(var(--sp-speed) * 0.40)}
+  .tab[aria-current="true"] .tablab .sp4{animation:twinkle var(--sp-speed) ease-in-out infinite calc(var(--sp-speed) * 0.60)}
+  .tab[aria-current="true"] .tablab .sp5{animation:twinkle var(--sp-speed) ease-in-out infinite calc(var(--sp-speed) * 0.80)}
   /* au survol, le balayage s'accélère */
   .tab[aria-current="true"]:hover .tablab .shine{animation-duration:1.2s}
   .tab[aria-current="true"]:hover .tablab .sp{animation-duration:1.1s}
@@ -1242,3 +1235,355 @@ table.tight .ico{min-width:34px}
   border-radius:0 2px 2px 0; background:#4FA8FF; pointer-events:none}
 /* sur mobile les onglets sont des pastilles dans un ruban : pas de décalage */
 @media (max-width:1000px){ .tab:hover,.tab:active{transform:none} }
+
+/* chapeau généré de chaque carte d'équipe */
+.etlead2{margin:0; font-size:12px; line-height:1.5; color:var(--ink-2);
+  padding:9px 0 0; border-top:1px dashed var(--line-2)}
+.etlead2 + .etpts{border-top:0; padding-top:2px}
+
+/* ---------- pied de page ---------- */
+.sitefoot{margin-top:42px; padding:18px 20px; display:flex; justify-content:center;
+  border-radius:12px; position:relative; isolation:isolate;
+  background:linear-gradient(color-mix(in srgb,var(--gold-line) 8%,transparent), transparent)}
+.sitefoot::before{content:""; position:absolute; inset:0; border-radius:inherit; padding:1.4px;
+  background:linear-gradient(90deg, transparent,
+    color-mix(in srgb,var(--gold-line) 70%,transparent), #FFE9A8,
+    color-mix(in srgb,var(--gold-line) 70%,transparent), transparent);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite:exclude; pointer-events:none; z-index:-1}
+.sitefoot span{font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; font-weight:600;
+  color:var(--gold-line); text-align:center}
+
+/* ---------- rubrique en cours de rédaction ---------- */
+.wipwrap{display:grid; place-items:center; padding:26px 0 10px}
+.wipnote{max-width:460px; display:grid; justify-items:center; gap:8px; text-align:center;
+  padding:26px 28px; border-radius:16px; background:var(--surface);
+  border:1px solid var(--gold-line); box-shadow:var(--shadow)}
+.wipimg{width:150px; height:auto; margin-bottom:4px}
+.wipnote b{font-size:17px; letter-spacing:.02em; color:var(--gold-line)}
+.wipnote p{margin:0; font-size:13px; color:var(--muted); line-height:1.55; max-width:38ch}
+
+/* la ligne de date passe sous le bouton Discord */
+.railnote{padding:10px 8px 0; font-size:11px; color:var(--muted); text-align:center}
+@media (max-width:1000px){ .railnote{display:none} }
+
+/* ---------- Team : trois variantes proposées ---------- */
+.varsec{display:grid; justify-items:center; gap:9px; margin:18px 0 4px}
+.vargrid{width:100%; display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:11px}
+.varcard{text-align:left; display:grid; gap:8px; align-content:start; cursor:pointer;
+  padding:12px 14px 13px; border-radius:13px; border:1px solid var(--line-2);
+  background:var(--surface); color:inherit; font:inherit;
+  transition:border-color .16s ease, transform .16s ease, box-shadow .16s ease}
+.varcard:hover{transform:translateY(-2px); border-color:var(--gold-line)}
+.varcard.on{border-color:var(--gold-line); border-width:2px; padding:11px 13px 12px;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--gold-line) 16%,transparent)}
+.vhead{display:flex; align-items:center; gap:8px}
+.vhead b{flex:1; font-size:14px}
+.von{font-size:8.5px; letter-spacing:.09em; text-transform:uppercase; font-weight:700;
+  color:var(--gold-line); border:1px solid var(--gold-line); border-radius:999px; padding:1px 7px}
+.varcard p{margin:0; font-size:12px; color:var(--muted); line-height:1.5}
+.vteam{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:2px}
+.vm{display:grid; justify-items:center; gap:2px; min-width:0}
+.vm .ico{width:30px; height:30px}
+.vm i{font-style:normal; font-size:9px; color:var(--ink-2); max-width:100%;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
+/* ---------- Team : le conseiller ---------- */
+.coach{display:grid; justify-items:center; gap:9px; margin:20px 0 4px}
+.coachgrid{width:100%; display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:11px}
+.citem{display:grid; gap:7px; align-content:start; padding:12px 14px 13px; border-radius:13px;
+  background:var(--surface); border:1px solid var(--line-2); border-left-width:3px}
+.citem.c-manque{border-left-color:#D2453F}
+.citem.c-conseil{border-left-color:var(--gold-line)}
+.citem.c-atout{border-left-color:#3FA45B}
+.chead{display:grid; gap:2px}
+.chead span{font-size:8.5px; letter-spacing:.1em; text-transform:uppercase; font-weight:700; color:var(--muted)}
+.c-manque .chead span{color:#D2453F}
+.c-conseil .chead span{color:var(--gold-line)}
+.c-atout .chead span{color:#3FA45B}
+.chead b{font-size:13.5px; line-height:1.25}
+.citem p{margin:0; font-size:12px; color:var(--muted); line-height:1.5}
+.csugg{display:flex; flex-wrap:wrap; gap:6px; margin-top:2px}
+.sugg{display:inline-flex; align-items:center; gap:6px; cursor:pointer; font:inherit;
+  font-size:11.5px; padding:4px 10px 4px 4px; border-radius:999px;
+  border:1px solid var(--line-2); background:var(--surface-2); color:var(--ink);
+  transition:border-color .15s ease, transform .15s ease}
+.sugg:hover{border-color:var(--gold-line); transform:translateY(-1px)}
+.sugg .ico{width:20px; height:20px}
+.sugg .sr{font-size:8.5px; letter-spacing:.06em; color:var(--muted)}
+
+/* ---------- vote de la communauté ---------- */
+.betatag{margin-left:6px; font-size:8px; letter-spacing:.12em; font-weight:800;
+  padding:1px 5px; border-radius:4px; color:#1a1408; vertical-align:middle;
+  background:linear-gradient(100deg,#FFE9A8,var(--gold-line),#FFE9A8);
+  background-size:220% 100%}
+@media (prefers-reduced-motion:no-preference){
+  .betatag{animation:betaglow 2.6s ease-in-out infinite}
+  @keyframes betaglow{0%,100%{background-position:180% 0} 50%{background-position:0 0}}
+}
+.votebox{margin:0 auto 16px; max-width:78ch; padding:12px 15px 13px; border-radius:12px;
+  background:var(--surface); border:1px solid var(--line-2); border-left:3px solid var(--gold-line)}
+.vbhead{display:flex; align-items:center; gap:2px; margin-bottom:4px}
+.vbhead b{font-size:13.5px}
+.votebox p{margin:0 0 9px; font-size:12px; color:var(--muted); line-height:1.5}
+.votes{display:flex; gap:4px; justify-content:center; margin-top:3px}
+.vbtn{display:inline-flex; align-items:center; gap:3px; cursor:pointer; font:inherit;
+  font-size:9px; line-height:1; padding:3px 6px; border-radius:7px;
+  border:1px solid var(--line-2); background:var(--surface-2); color:var(--muted)}
+.vbtn i{font-style:normal; font-family:"IBM Plex Mono",monospace; font-size:9px}
+.vbtn.up:hover,.vbtn.up.on{border-color:#3FA45B; color:#3FA45B}
+.vbtn.down:hover,.vbtn.down.on{border-color:#D2453F; color:#D2453F}
+.vbtn.on{font-weight:700}
+
+/* ---------- panneau admin : navigation par familles ---------- */
+.adminshell{display:grid; grid-template-columns:262px 1fr; gap:16px; align-items:start}
+@media (max-width:1000px){ .adminshell{grid-template-columns:1fr} }
+.adminnav{display:grid; gap:3px; position:sticky; top:14px;
+  padding:10px; border-radius:14px; background:var(--surface); border:1px solid var(--line)}
+@media (max-width:1000px){ .adminnav{position:static} }
+.angroup{font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted);
+  padding:12px 8px 5px}
+.angroup:first-child{padding-top:4px}
+.ansec{display:grid; gap:1px; text-align:left; cursor:pointer; font:inherit; color:inherit;
+  padding:9px 11px; border-radius:10px; border:1px solid transparent; background:none;
+  transition:background-color .15s ease, border-color .15s ease, transform .15s ease}
+.ansec:hover{background:var(--surface-2); transform:translateX(3px)}
+.ansec.on{background:var(--surface-2); border-color:var(--gold-line)}
+.ansec b{font-size:13px}
+.ansec span{font-size:10.5px; color:var(--muted); line-height:1.35}
+.ancount{font-style:normal; font-family:"IBM Plex Mono",monospace; font-size:9.5px;
+  color:var(--gold-line); margin-top:2px}
+.adminmain{min-width:0}
+
+/* ---------- admin : familles encadrées dans la colonne ---------- */
+.adminnav{gap:10px; padding:12px}
+.anbox{border:1px solid var(--line-2); border-radius:12px; padding:8px; display:grid; gap:3px;
+  background:color-mix(in srgb,var(--surface-2) 55%,transparent)}
+.angroup{font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted);
+  padding:2px 8px 6px}
+
+/* ---------- admin : bibliothèque de styles ---------- */
+.stgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:12px}
+.stcard{display:grid; gap:9px; padding:12px 13px 13px; border-radius:13px;
+  background:var(--surface-2); border:1px solid var(--line-2)}
+.sthead{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.sthead .rank{white-space:nowrap}
+.sthead input{flex:1 1 130px; min-width:0; background:var(--surface); border:1px solid var(--line-2);
+  border-radius:8px; padding:6px 9px; color:inherit; font:inherit; font-weight:600}
+.strow{display:flex; flex-wrap:wrap; gap:9px}
+.strow .f{display:grid; gap:3px; min-width:88px}
+.strow .f.wide{flex:1 1 140px}
+.strow .f > span{font-size:9.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted)}
+.strow .f.check{display:flex; align-items:center; gap:6px; min-width:0}
+.strow .f.check span{text-transform:none; letter-spacing:0; font-size:11.5px}
+.strow input[type=color]{width:100%; height:30px; padding:2px; border-radius:7px;
+  border:1px solid var(--line-2); background:var(--surface)}
+.stprev{padding:12px 14px; border-radius:11px; background:var(--surface);
+  border:1px dashed var(--line-2); display:grid; gap:9px; justify-items:start}
+.stprev .tab{width:auto; pointer-events:none}
+.stprev .abilnote{margin:0; max-width:100%}
+
+/* Les aperçus vivent dans une page qui porte déjà un style : on neutralise
+   ce qu'elle impose avant d'appliquer celui de la fiche. */
+.stprev .tablab .shine,
+.stprev .tablab .shine i,
+.stprev .tablab .shine::before,
+.stprev .tablab .shine::after{animation:none !important}
+.stprev .tablab .shine{background-image:none !important; color:var(--head-ink) !important;
+  text-shadow:none !important}
+.stprev .abilnote::before{animation:none !important}
+
+/* ================= les cinq effets d'écriture =================
+   Le nom de la catégorie est découpé en lettres (<i>), ce qui permet
+   des animations lettre par lettre sans toucher au reste du menu. */
+.tablab .shine{display:inline-block}
+.tablab .shine i{font-style:normal; display:inline-block}
+
+/* 1. reflet balayant — l'éclat glisse sur le mot */
+.tfx-shine .tablab .shine{
+  background-image:linear-gradient(100deg,
+    var(--head-ink) 0%, var(--head-ink) 26%,
+    var(--sp-red) 38%, #FFFFFF 50%, var(--sp-blue) 62%,
+    var(--head-ink) 74%, var(--head-ink) 100%);
+  background-size:280% 100%; background-position:120% 0;
+  -webkit-background-clip:text; background-clip:text; color:transparent}
+@media (prefers-reduced-motion:no-preference){
+  .tfx-shine .tab[aria-current="true"] .tablab .shine,
+  .stprev.tfx-shine .tablab .shine{
+    animation:headshine calc(var(--sp-speed) * 1.15) ease-in-out infinite !important;
+    background-image:linear-gradient(100deg, var(--head-ink) 0%, var(--head-ink) 26%,
+      var(--sp-red) 38%, #FFFFFF 50%, var(--sp-blue) 62%,
+      var(--head-ink) 74%, var(--head-ink) 100%) !important;
+    background-size:280% 100%; -webkit-background-clip:text; background-clip:text;
+    color:transparent !important}
+}
+
+/* 2. halo qui respire */
+.tfx-pulse .tablab .shine{color:var(--sp-red)}
+@media (prefers-reduced-motion:no-preference){
+  .tfx-pulse .tab[aria-current="true"] .tablab .shine,
+  .stprev.tfx-pulse .tablab .shine{animation:tfxPulse var(--sp-speed) ease-in-out infinite !important}
+}
+@keyframes tfxPulse{
+  0%,100%{text-shadow:0 0 0 transparent; color:var(--head-ink)}
+  50%{text-shadow:0 0 10px var(--sp-red), 0 0 22px var(--sp-blue); color:var(--sp-blue)}
+}
+
+/* 3. vague — les lettres montent l'une après l'autre */
+@media (prefers-reduced-motion:no-preference){
+  .tfx-wave .tab[aria-current="true"] .tablab .shine i,
+  .stprev.tfx-wave .tablab .shine i{
+    animation:tfxWave calc(var(--sp-speed) * .9) ease-in-out infinite !important;
+    animation-delay:calc(var(--l) * .055s)}
+}
+@keyframes tfxWave{
+  0%,100%{transform:translateY(0); color:var(--head-ink)}
+  50%{transform:translateY(-3px); color:var(--sp-red)}
+}
+
+/* 4. glitch — décalage chromatique par à-coups */
+.tfx-glitch .tablab .shine{position:relative; color:var(--head-ink)}
+.tfx-glitch .tablab .shine::before,
+.tfx-glitch .tablab .shine::after{
+  content:attr(data-txt); position:absolute; left:0; top:0; width:100%; pointer-events:none;
+  clip-path:inset(0 0 55% 0); opacity:0}
+.tfx-glitch .tablab .shine::before{color:var(--sp-red)}
+.tfx-glitch .tablab .shine::after{color:var(--sp-blue); clip-path:inset(55% 0 0 0)}
+@media (prefers-reduced-motion:no-preference){
+  .tfx-glitch .tab[aria-current="true"] .tablab .shine::before,
+  .stprev.tfx-glitch .tablab .shine::before{
+    animation:tfxGlitchA calc(var(--sp-speed) * 1.6) steps(1,end) infinite !important}
+  .tfx-glitch .tab[aria-current="true"] .tablab .shine::after,
+  .stprev.tfx-glitch .tablab .shine::after{
+    animation:tfxGlitchB calc(var(--sp-speed) * 1.6) steps(1,end) infinite !important}
+}
+@keyframes tfxGlitchA{
+  0%,86%,100%{opacity:0; transform:none}
+  88%{opacity:.9; transform:translate(-2px,-1px)}
+  92%{opacity:.9; transform:translate(2px,1px)}
+  96%{opacity:0}
+}
+@keyframes tfxGlitchB{
+  0%,86%,100%{opacity:0; transform:none}
+  89%{opacity:.9; transform:translate(2px,1px)}
+  93%{opacity:.9; transform:translate(-2px,-1px)}
+  97%{opacity:0}
+}
+
+/* 5. néon — contour lumineux qui vibre */
+.tfx-neon .tablab .shine{color:#fff}
+@media (prefers-reduced-motion:no-preference){
+  .tfx-neon .tab[aria-current="true"] .tablab .shine,
+  .stprev.tfx-neon .tablab .shine{animation:tfxNeon calc(var(--sp-speed) * .8) ease-in-out infinite !important;
+    color:#fff !important}
+}
+@keyframes tfxNeon{
+  0%,100%{text-shadow:0 0 4px var(--sp-red), 0 0 12px var(--sp-red), 0 0 22px var(--sp-blue)}
+  47%{text-shadow:0 0 2px var(--sp-red), 0 0 6px var(--sp-red), 0 0 12px var(--sp-blue)}
+  50%{text-shadow:0 0 5px var(--sp-red), 0 0 16px var(--sp-red), 0 0 28px var(--sp-blue)}
+}
+
+/* aucun effet */
+.tfx-none .tablab .shine{color:var(--head-ink)}
+
+/* étincelles : le nombre est piloté par le style */
+:root.sp-off-1 .tablab .sp1, :root.sp-off-2 .tablab .sp2, :root.sp-off-3 .tablab .sp3,
+:root.sp-off-4 .tablab .sp4, :root.sp-off-5 .tablab .sp5{display:none}
+
+/* couleurs de base des aperçus, par effet */
+.stprev.tfx-pulse .tablab .shine{color:var(--sp-red) !important}
+.stprev.tfx-glitch .tablab .shine{color:var(--head-ink) !important; position:relative}
+.stprev.tfx-glitch .tablab .shine::before{color:var(--sp-red) !important}
+.stprev.tfx-glitch .tablab .shine::after{color:var(--sp-blue) !important}
+
+/* ================= les cinq encadrements ================= */
+/* 1. liseré tournant (celui d'origine, défini plus haut) */
+
+/* 2. pointillés qui défilent */
+.frm-dashed .abilnote::before{
+  background:none !important; animation:none !important;
+  border:1.6px dashed var(--gold-line); border-radius:inherit;
+  -webkit-mask:none !important; mask:none !important; inset:0; padding:0}
+@media (prefers-reduced-motion:no-preference){
+  .frm-dashed .abilnote::before{animation:frmDash 14s linear infinite !important}
+}
+@keyframes frmDash{to{background-position:200px 0}}
+.frm-dashed .abilnote::after{opacity:.3}
+
+/* 3. équerres aux quatre coins */
+.frm-corners .abilnote::before{
+  background:none !important; animation:none !important;
+  -webkit-mask:none !important; mask:none !important; padding:0; inset:0;
+  border:0; border-radius:0;
+  background-image:
+    linear-gradient(var(--gold-line),var(--gold-line)), linear-gradient(var(--gold-line),var(--gold-line)),
+    linear-gradient(var(--gold-line),var(--gold-line)), linear-gradient(var(--gold-line),var(--gold-line)),
+    linear-gradient(var(--gold-line),var(--gold-line)), linear-gradient(var(--gold-line),var(--gold-line)),
+    linear-gradient(var(--gold-line),var(--gold-line)), linear-gradient(var(--gold-line),var(--gold-line)) !important;
+  background-repeat:no-repeat !important;
+  background-size:14px 1.6px, 1.6px 14px, 14px 1.6px, 1.6px 14px,
+                  14px 1.6px, 1.6px 14px, 14px 1.6px, 1.6px 14px !important;
+  background-position:left top, left top, right top, right top,
+                      left bottom, left bottom, right bottom, right bottom !important}
+.frm-corners .abilnote::after{opacity:.25}
+
+/* 4. halo diffus qui respire */
+.frm-glow .abilnote::before{
+  background:none !important; animation:none !important;
+  -webkit-mask:none !important; mask:none !important; padding:0; inset:0;
+  border:1px solid color-mix(in srgb,var(--gold-line) 55%,transparent); border-radius:inherit}
+.frm-glow .abilnote{box-shadow:0 0 18px -6px var(--gold-line)}
+@media (prefers-reduced-motion:no-preference){
+  .frm-glow .abilnote{animation:frmGlow 3.2s ease-in-out infinite}
+}
+@keyframes frmGlow{
+  0%,100%{box-shadow:0 0 14px -8px var(--gold-line)}
+  50%{box-shadow:0 0 26px -4px var(--gold-line)}
+}
+
+/* 5. double filet, sobre */
+.frm-double .abilnote::before{
+  background:none !important; animation:none !important;
+  -webkit-mask:none !important; mask:none !important; padding:0; inset:0;
+  border:1px solid var(--gold-line); border-radius:inherit;
+  box-shadow:inset 0 0 0 3px var(--surface), inset 0 0 0 4px color-mix(in srgb,var(--gold-line) 55%,transparent)}
+.frm-double .abilnote::after{opacity:0}
+
+/* aucun encadrement */
+.frm-none .abilnote::before{
+  background:none !important; animation:none !important;
+  -webkit-mask:none !important; mask:none !important; padding:0; inset:0;
+  border:1px solid var(--line-2); border-radius:inherit}
+.frm-none .abilnote::after{opacity:0}
+
+/* ---------- boutons Enregistrer et Vote d'une liste ---------- */
+.btn.save{color:#3FA45B; border-color:#3FA45B66}
+.btn.save:hover{background:color-mix(in srgb,#3FA45B 14%,transparent); border-color:#3FA45B}
+.btn.vote{color:#E8702A; border-color:#E8702A66}
+.btn.vote:hover{background:color-mix(in srgb,#E8702A 14%,transparent); border-color:#E8702A}
+.btn.vote.on{background:#E8702A; border-color:transparent; color:#fff; font-weight:600}
+.votes.lv .vbtn{font-size:10px; padding:3px 7px}
+.votebox.lvbox{border-left-color:#E8702A}
+.lvbox .actions{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+
+/* ---------- encadré vert : astuce d'utilisation ---------- */
+.tipnote{position:relative; display:flex; gap:9px; align-items:flex-start;
+  margin:6px auto 18px; max-width:70ch; width:fit-content;
+  background:var(--surface); border-radius:10px; padding:10px 14px;
+  font-size:12.5px; color:var(--ink-2); line-height:1.5; isolation:isolate; text-align:left}
+.tipnote::before{content:""; position:absolute; inset:0; border-radius:inherit; padding:1.4px;
+  background:linear-gradient(100deg,#2FA36B,#63E6A0,#2FA36B);
+  background-size:220% 100%;
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite:exclude; pointer-events:none; z-index:-1}
+@media (prefers-reduced-motion:no-preference){
+  .tipnote::before{animation:tipsweep 5s linear infinite}
+  @keyframes tipsweep{to{background-position:220% 0}}
+}
+.tipnote span{flex:none; font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+  font-weight:700; color:#3FBF7F; padding-top:2px}
+/* variante posée à droite du titre de la page */
+.tipnote.right{margin:0 0 0 auto; max-width:44ch; padding:8px 12px; font-size:11.5px}
+@media (max-width:900px){ .tipnote.right{margin:8px 0 0; max-width:100%} }

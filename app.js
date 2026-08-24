@@ -15,7 +15,7 @@
     var PUB = JSON.parse(RAW);
     ["specs", "effects", "speeds", "pages", "pageEffects", "bosses", "bossTypes",
      "chart", "elemIcons", "elements", "roles", "levels", "meta", "abilities",
-     "evoLines", "elemTeams"].forEach(function (k) {
+     "evoLines", "elemTeams", "tierVotes", "tabs", "textStyles", "pageStyle"].forEach(function (k) {
       if (!S[k] || (Array.isArray(S[k]) && !S[k].length)) S[k] = PUB[k];
     });
     /* icônes de compétences : on complète sans écraser celles ajoutées dans l'admin */
@@ -28,6 +28,7 @@
     /* la bannière et les équipes livrées avec le site suivent la publication */
     if (PUB.heroImg) S.heroImg = PUB.heroImg;
     if (PUB.roleIcons) S.roleIcons = PUB.roleIcons;
+    if (PUB.wipImg) S.wipImg = PUB.wipImg;
     S.elemTeams = S.elemTeams || {};
     Object.keys(PUB.elemTeams || {}).forEach(function (e) {
       var mine = S.elemTeams[e];
@@ -152,6 +153,12 @@
     return '<span class="chip sm el" style="background:' + (S.elements[e] || "#888") + '">' +
       (im ? '<img src="' + im + '" alt="" class="elico">' : "") + esc(e) + "</span>";
   }
+  /* encadré vert : une astuce d'utilisation */
+  function tipNote(txt, cls) {
+    return '<p class="tipnote' + (cls ? " " + cls : "") + '"><span>Astuce</span>' + esc(txt) + "</p>";
+  }
+  var TIP_CLICK = "Cliquez sur l'icône ou le nom de l'Aniimo pour avoir les informations.";
+
   /* encadré or : le liseré s'anime en continu */
   function goldNote(label, txt) {
     return '<p class="abilnote"><span>' + esc(label) + "</span>" + esc(txt) + "</p>";
@@ -301,22 +308,33 @@
     return " fx fx-" + c.fx + " spd-" + c.sp;
   }
   var view = {
-    tab: "tous", q: "", elem: "", role: "", job: "", type: "", sort: "atk", dir: -1, pick: null,
+    tab: "tous", q: "", elem: "", role: "", job: "", type: "", sort: "no", dir: 1, pick: null,
     teamMode: "auto", teamMain: "Fulmintis", teamSlots: ["", "", "", ""], adminSec: "aniimo",
-    tcreate: false, tpick: null, tfold: false,
+    tcreate: false, tpick: null, tfold: false, teamVar: "dmg", tvote: false,
     openPicker: null, pickerQ: "", boss: "", bossType: "", pins: null, abil: "homeland", tier: "DPS", detail: null
   };
 
   var TABS = [
     { id: "tous", label: "Tous les Aniimos", kind: "roster", grp: "Fiches" },
     { id: "puissance", label: "Les compétences", kind: "power", grp: "Fiches" },
+    { id: "equipements", label: "Equipements", kind: "wip", grp: "Fiches" },
     { id: "abilites", label: "Abilités", kind: "abil", grp: "Fiches" },
     { id: "metiers", label: "Métiers Aniimo", kind: "jobs", grp: "Fiches" },
+    { id: "homeland", label: "HomeLand", kind: "wip", grp: "Fiches" },
     { id: "team", label: "Team", kind: "team", grp: "Fiches" },
     { id: "tiers", label: "Tiers List", kind: "tier", grp: "Fiches" },
     { id: "admin", label: "Panneau admin", kind: "admin", grp: "Gestion" }
   ];
-  function tabOf(id) { for (var i = 0; i < TABS.length; i++) if (TABS[i].id === id) return TABS[i]; return TABS[0]; }
+  /* les catégories peuvent être renommées ou réordonnées dans l'admin */
+  function tabs() {
+    var t = (S.tabs && S.tabs.length) ? S.tabs : TABS;
+    return t.filter(function (x) { return x && x.id; });
+  }
+  function tabOf(id) {
+    var t = tabs();
+    for (var i = 0; i < t.length; i++) if (t[i].id === id) return t[i];
+    return t[0] || TABS[0];
+  }
 
   function rows(tab) {
     var list = S.aniimos.slice();
@@ -365,7 +383,7 @@
     var rls = ROLE_ORDER.map(function (r) { return '<option value="' + r + '"' + (view.role === r ? " selected" : "") + ">" + r + "</option>"; }).join("");
     var jbs = S.jobs.map(function (j) { return '<option value="' + j.key + '"' + (view.job === j.key ? " selected" : "") + ">" + j.icon + " " + j.name + "</option>"; }).join("") +
       '<option value="aucun"' + (view.job === "aucun" ? " selected" : "") + ">Aucun métier</option>";
-    var tps = ["Physique", "Magique", "Soin"].map(function (t) { return '<option value="' + t + '"' + (view.type === t ? " selected" : "") + ">" + t + "</option>"; }).join("");
+    var tps = ["Physique", "Magique"].map(function (t) { return '<option value="' + t + '"' + (view.type === t ? " selected" : "") + ">" + t + "</option>"; }).join("");
     return '<div class="toolbar">' +
       '<div class="field"><label for="q">Chercher</label><input id="q" type="search" placeholder="nom, compétence…" value="' + esc(view.q) + '"></div>' +
       '<div class="field"><label for="fe">Élément</label><select id="fe"><option value="">tous</option>' + els + "</select></div>" +
@@ -380,7 +398,8 @@
     var list = rows(null);
     var maxAtk = Math.max.apply(null, S.aniimos.map(function (a) { return a.atk; }));
     var maxTot = Math.max.apply(null, S.aniimos.map(total));
-    var h = '<div class="head"><h1>Tous les Aniimos</h1><span class="count">' + list.length + " / " + S.aniimos.length + "</span></div>" +
+    var h = '<div class="head"><h1>Tous les Aniimos</h1><span class="count">' + list.length + " / " +
+      S.aniimos.length + "</span>" + tipNote(TIP_CLICK, "right") + "</div>" +
       toolbar({}) + '<div class="tablewrap"><table class="tight roster' + animClass() + '"><thead><tr>' +
       '<th class="w-rank">#</th><th class="w-ico"></th>' + th("N°", "no", "w-no") + th("Nom", "name", "w-nm") +
       th("Élément", "elem") + th("Rôle", "role") + th("Métier", "job") + th("Type", "type") +
@@ -410,7 +429,7 @@
     var list = rows(null);
     var maxScore = Math.max.apply(null, S.aniimos.map(score));
     var h = '<div class="head"><h1>Les compétences</h1><span class="count">' + list.length + " / " +
-      S.aniimos.length + "</span></div>" +
+      S.aniimos.length + "</span>" + tipNote(TIP_CLICK, "right") + "</div>" +
       '<p class="sub">Score = somme des 3 compétences les plus puissantes (valeur « Might » du jeu). « Dégâts du meilleur coup » = ATK × puissance de la meilleure compétence : ce que l\'Aniimo place réellement en un coup.</p>' +
       toolbar({}) +
       '<div class="toolbar" style="margin-top:-6px"><div class="field"><label for="fs">Trier par</label>' +
@@ -708,9 +727,11 @@
       (cur.intro ? '<p class="sub">' + esc(cur.intro) + "</p>" : "") +
       (cur.note ? goldNote("Attention", cur.note) : "");
     if (!cur.items.length) {
-      return h + '<div class="card"><h3>Rien pour le moment</h3>' +
-        "<p>Cette catégorie attend ses abilités : envoie-moi les fiches du jeu et je les ajoute ici, " +
-        "dans la même présentation que « HomeLand ».</p></div>";
+      return h + '<div class="wipwrap"><div class="wipnote">' +
+        (S.wipImg ? '<img class="wipimg" src="' + S.wipImg + '" alt="">' : "") +
+        "<b>Rédaction en cours</b>" +
+        "<p>Cette rubrique arrive bientôt. Reviens la consulter dans quelques jours, " +
+        "ou suis l'avancement sur le Discord.</p></div></div>";
     }
     h += '<div class="grid cards2' + animClass() + '">';
     cur.items.forEach(function (p, pi) {
@@ -821,8 +842,64 @@
   }
 
   var TIER_ROLES = [["DPS", "DPS"], ["BREAK", "Break"], ["SUPPORT", "Support"],
-                    ["REGEN", "Regen"], ["HEAL", "Soin"], ["ALL", "Tout"]];
+                    ["REGEN", "Regen"], ["HEAL", "Soin"]];
+  TIER_ROLES.unshift(["ALL", "Tout"]);
   /* ---------------- Tiers List ---------------- */
+
+  /* ---- vote sur la liste d'un joueur, vignette par vignette ---- */
+  var LV_KEY = "aniimo.lvotes";
+  var LVOTES = null;
+  function listVotes() {
+    if (!LVOTES) {
+      try { LVOTES = JSON.parse(localStorage.getItem(LV_KEY) || "{}"); } catch (e) { LVOTES = {}; }
+    }
+    return LVOTES;
+  }
+  function saveListVotes() { try { localStorage.setItem(LV_KEY, JSON.stringify(listVotes())); } catch (e) {} }
+  function myListVote(id, name) { return (listVotes()[id] || {})[name] || ""; }
+  function castListVote(id, name, val) {
+    var L = listVotes();
+    L[id] = L[id] || {};
+    if (L[id][name] === val) delete L[id][name]; else L[id][name] = val;
+    if (!Object.keys(L[id]).length) delete L[id];
+    saveListVotes(); render();
+  }
+  function listTally(l, name) {
+    var t = ((l || {}).votes || {})[name] || {};
+    return { ok: t.ok || 0, no: t.no || 0 };
+  }
+  function listBallot(l) {
+    var v = listVotes()[l.id] || {}, out = [];
+    Object.keys(v).forEach(function (n) { out.push((v[n] === "ok" ? "+" : "-") + n); });
+    return out.length ? tEnc({ l: l.id, t: l.title || "", v: out }) : "";
+  }
+  /* la barre de vote posée sur une vignette d'une liste de joueur */
+  function listVoteBar(l, a) {
+    if (!view.tvote || !l) return "";
+    var mine = myListVote(l.id, a.name), t = listTally(l, a.name);
+    return '<div class="votes lv">' +
+      '<button type="button" class="vbtn up' + (mine === "ok" ? " on" : "") +
+      '" data-lv="ok" data-lvn="' + esc(a.name) + '" title="D\'accord avec ce palier">✓<i>' + t.ok + "</i></button>" +
+      '<button type="button" class="vbtn down' + (mine === "no" ? " on" : "") +
+      '" data-lv="no" data-lvn="' + esc(a.name) + '" title="Pas d\'accord">✗<i>' + t.no + "</i></button></div>";
+  }
+  function listVotePanel(l) {
+    if (!view.tvote || !l) return "";
+    var v = listVotes()[l.id] || {};
+    var ok = 0, no = 0;
+    Object.keys(v).forEach(function (n) { if (v[n] === "ok") ok++; else no++; });
+    return '<div class="votebox lvbox"><div class="vbhead"><b>Ton avis sur « ' +
+      esc(l.title || "cette liste") + ' »</b><span class="betatag">BETA</span></div>' +
+      "<p>Sous chaque vignette, ✓ valide le palier proposé et ✗ le conteste. " +
+      "Quand tu as fini, copie ton avis et envoie-le à l'auteur ou sur le Discord : " +
+      "il sera compté et affiché sur la liste.</p>" +
+      '<div class="actions"><span class="rank">' + ok + " d'accord · " + no + " en désaccord</span>" +
+      '<span style="flex:1"></span>' +
+      '<button class="btn' + (ok + no ? " primary" : "") + '" id="lvcopy"' + (ok + no ? "" : " disabled") +
+      ">Copier mon avis</button>" +
+      (ok + no ? '<button class="btn" id="lvclear">Effacer mes ✓ ✗</button>' : "") + "</div></div>";
+  }
+
   /* listes personnalisées : créées ici, partagées par code/lien (site statique) */
   function tLists() { S.tierLists = S.tierLists || []; return S.tierLists; }
   function tPublic() { S.tierPublic = S.tierPublic || []; return S.tierPublic; }
@@ -912,7 +989,7 @@
         '<span class="dot" style="background:' + col + '"></span>' + esc(r[1]) +
         '<span class="n">' + n + "</span></button>";
     }).join("") +
-      '<button class="btn tierbtn tiernew" id="tcreate">✦ Créer</button>' +
+      '<button class="btn tierbtn tiernew" id="tcreate">✦ Créer<span class="betatag">BETA</span></button>' +
       '<button class="btn tierbtn tierimp" id="timport">Ouvrir un code</button></div>';
 
     /* --- dépliant : Les Tiers du Foyer --- */
@@ -987,10 +1064,8 @@
         " sur " + S.aniimos.length + ") : une pré-évolution finit toujours par devenir sa forme finale.</p>";
     }
     h += "</div>";
-    h += goldNote("À noter",
-      "Cette Tiers List vaut pour le Monde ouvert (Open World). " +
-      "En donjon, en raid ou en combat chronométré, l'ordre change : les BREAK et " +
-      "les soigneurs y prennent plus de valeur qu'un DPS bien placé ici.");
+    h += votePanel();
+    h += goldNote("À noter", "Cette Tiers List vaut pour le Monde ouvert (Open World).");
 
     /* --- barre d'outils --- */
     h += '<div class="toolbar"><div class="field"><label for="q">Chercher</label><input id="q" type="search" placeholder="nom…" value="' + esc(view.q) + '"></div>' +
@@ -999,8 +1074,13 @@
       '</select></div><button class="btn" id="reset">Réinitialiser</button>' +
       (list ? '<span style="flex:1"></span>' +
         '<button class="btn" id="tshare">Copier le lien de partage</button>' +
+        '<button class="btn vote' + (view.tvote ? " on" : "") + '" id="tvote">' +
+        (view.tvote ? "Fermer le vote" : "Vote") + "</button>" +
+        (tIsMine(list.id) ? '<button class="btn save" id="tsave">Enregistrer</button>' : "") +
         (tIsMine(list.id) ? "" : '<button class="btn" id="tfork">Reprendre à mon compte</button>') +
         (tIsPublic(list.id) ? "" : '<button class="btn danger" id="tdel">Supprimer</button>') : "") + "</div>";
+
+    if (list) h += listVotePanel(list);
 
     /* --- colonnes affichées --- */
     var groups = list || role === "ALL"
@@ -1073,7 +1153,7 @@
   function tCard(r, ranked, role, list) {
     var a = r.a, rr = role === "ALL" ? a.role : role;
     var kv = { DPS: hit(a), BREAK: a.brk, SUPPORT: a.regen, REGEN: a.regen, HEAL: a.regen }[rr];
-    var edit = !!(list && tIsMine(list.id));
+    var edit = !!(list && tIsMine(list.id)) && !view.tvote;
     var picked = list && view.tpick === a.name;
     return '<div class="tcard' + (picked ? " picked" : "") + '"' +
       (edit ? ' draggable="true" data-drag="' + esc(a.name) + '"' : "") +
@@ -1086,7 +1166,8 @@
       '<div class="tcname">' + (edit ? esc(a.name) : aniLink(a, esc(a.name))) + "</div>" +
       '<div class="tcel">' + a.elems.map(elemChip).join("") +
       (role === "ALL" ? roleChip(a.role) : "") + "</div>" +
-      '<div class="tcwhy">' + esc(whyOf(a)) + "</div></div>";
+      '<div class="tcwhy">' + esc(whyOf(a)) + "</div>" +
+      (list ? listVoteBar(list, a) : voteBar(a)) + "</div>";
   }
 
   /* ---------------- team builder ---------------- */
@@ -1292,21 +1373,35 @@
     return null;
   }
   /* équipe retenue : le choix de l'admin s'il existe, sinon le calcul */
+  /* un remplaçant peut être un simple nom ou un objet {n, d} */
+  function altName(x) { return typeof x === "string" ? x : (x || {}).n || ""; }
+
   function elemTeamOf(elem) {
     var saved = elemTeams()[elem] || {};
     var picked = (saved.members || []).filter(Boolean);
     var auto = autoElemTeam(elem);
-    var txt = { note: saved.note || "", lead: saved.lead || "",
-                points: saved.points || [], risk: saved.risk || "",
-                alts: saved.alts || [] };
-    var out;
-    if (!picked.length) {
-      out = { members: auto ? auto.members : [], notes: (auto || {}).notes || {}, auto: true };
-    } else {
-      out = { members: picked, notes: (auto || {}).notes || {}, auto: false };
-    }
-    out.note = txt.note; out.lead = txt.lead; out.points = txt.points; out.risk = txt.risk;
-    out.alts = txt.alts;
+    var out = picked.length
+      ? { members: picked, notes: (auto || {}).notes || {}, auto: false }
+      : { members: auto ? auto.members : [], notes: (auto || {}).notes || {}, auto: true };
+
+    var altsRaw = (saved.alts || []).map(altName);
+    out.alts = altsRaw.map(function (n, i) {
+      var a = n ? findAni(n) : null;
+      var holder = findAni(out.members[i]);
+      var written = typeof (saved.alts || [])[i] === "object" ? ((saved.alts[i] || {}).d || "") : "";
+      return { n: n, d: written || (a ? autoAlt(a, holder, elem) : "") };
+    });
+
+    /* textes : ceux écrits à la main gagnent, sinon ils sont générés */
+    out.lead = saved.lead || autoLead(elem, out.members);
+    out.risk = saved.risk || autoRisk(elem, out.members);
+    var written = saved.points || [];
+    out.points = out.members.map(function (n, i) {
+      var a = findAni(n);
+      var w = written[i];
+      return { t: n, d: (w && w.t === n && w.d) ? w.d : autoPoint(a, elem) };
+    });
+    out.note = saved.note || "";
     return out;
   }
   function setBossAlt(id, v) {
@@ -1314,9 +1409,9 @@
     var elem = id.slice(0, i), slot = +id.slice(i + 1);
     var t = elemTeams();
     t[elem] = t[elem] || { members: ["", "", "", ""], note: "" };
-    t[elem].alts = t[elem].alts || [];
-    while (t[elem].alts.length < 4) t[elem].alts.push({ n: "", d: "" });
-    t[elem].alts[slot].n = v;
+    t[elem].alts = (t[elem].alts || []).map(altName);
+    while (t[elem].alts.length < 4) t[elem].alts.push("");
+    t[elem].alts[slot] = v;
   }
   function setBossTeam(id, v) {
     var i = id.lastIndexOf(":");
@@ -1325,6 +1420,249 @@
     t[elem] = t[elem] || { members: ["", "", "", ""], note: "" };
     while (t[elem].members.length < 4) t[elem].members.push("");
     t[elem].members[slot] = v;
+  }
+
+
+
+
+  /* ================= votes de la communauté [BETA] =================
+     Le site est un fichier statique : aucun serveur ne peut recevoir les
+     votes. Chaque visiteur vote dans son navigateur, puis copie un
+     bulletin que l'administrateur colle dans le panneau. Rien n'est
+     appliqué au classement tant qu'il n'a pas validé la proposition. */
+
+  var VOTE_KEY = "aniimo.votes";
+  function myVotes() {
+    if (!VOTES) {
+      try { VOTES = JSON.parse(localStorage.getItem(VOTE_KEY) || "{}"); } catch (e) { VOTES = {}; }
+    }
+    return VOTES;
+  }
+  var VOTES = null;
+  function saveVotes() {
+    try { localStorage.setItem(VOTE_KEY, JSON.stringify(myVotes())); } catch (e) {}
+  }
+  /* comptages publiés avec le site, entretenus par l'admin */
+  function tally() { S.tierVotes = S.tierVotes || {}; return S.tierVotes; }
+  function tallyOf(n) { var t = tally()[n] || {}; return { up: t.up || 0, down: t.down || 0 }; }
+
+  function castVote(name, dir) {
+    var v = myVotes();
+    if (v[name] === dir) delete v[name]; else v[name] = dir;
+    saveVotes();
+    render();
+    toast(v[name] ? "Vote enregistré — pense à envoyer ton bulletin" : "Vote retiré");
+  }
+  function voteBallot() {
+    var v = myVotes(), out = [];
+    Object.keys(v).forEach(function (n) { out.push((v[n] === "up" ? "+" : "-") + n); });
+    return out.length ? tEnc({ v: out }) : "";
+  }
+  function readBallot(code) {
+    var d = tDec(code);
+    if (!d || !d.v || !d.v.length) throw new Error("vide");
+    return d.v;
+  }
+
+  /* la barre de vote sous une vignette de la Tiers List */
+  function voteBar(a) {
+    if (!S.voteOn) return "";
+    var mine = myVotes()[a.name], t = tallyOf(a.name);
+    return '<div class="votes">' +
+      '<button type="button" class="vbtn up' + (mine === "up" ? " on" : "") +
+        '" data-vote="up" data-vn="' + esc(a.name) + '" title="Le monter d\'un palier">▲<i>' + t.up + "</i></button>" +
+      '<button type="button" class="vbtn down' + (mine === "down" ? " on" : "") +
+        '" data-vote="down" data-vn="' + esc(a.name) + '" title="Le descendre d\'un palier">▼<i>' + t.down + "</i></button>" +
+      "</div>";
+  }
+
+  function votePanel() {
+    if (!S.voteOn) return "";
+    var n = Object.keys(myVotes()).length;
+    return '<div class="votebox"><div class="vbhead"><b>Vote de la communauté</b>' +
+      '<span class="betatag">BETA</span></div>' +
+      "<p>Sous chaque vignette, ▲ propose de le monter d'un palier et ▼ de le descendre. " +
+      "Tes votes restent dans ton navigateur : copie ton bulletin et envoie-le sur le Discord, " +
+      "l'administrateur les compte et applique ceux qui font consensus.</p>" +
+      '<div class="actions"><button class="btn' + (n ? " primary" : "") + '" id="vcopy"' +
+      (n ? "" : " disabled") + ">Copier mon bulletin" + (n ? " (" + n + ")" : "") + "</button>" +
+      (n ? '<button class="btn" id="vclear">Effacer mes votes</button>' : "") + "</div></div>";
+  }
+
+  /* ============ Team automatique : plusieurs propositions ============ */
+  var TEAM_VARIANTS = [
+    { key: "dmg",  name: "Dégâts maximum",
+      desc: "Le plus gros pic de dégâts possible autour de ton Aniimo.",
+      tune: function (need) { need.w.dmgUp += 18; need.w.crit += 14; need.w.heal = Math.max(0, need.w.heal - 8); } },
+    { key: "safe", name: "Confort et survie",
+      desc: "Un peu moins de dégâts, beaucoup plus de marge d'erreur.",
+      tune: function (need) { need.w.heal += 26; need.w.cleanse += 14; need.w.shield += 10; } },
+    { key: "ep",   name: "Énergie continue",
+      desc: "Pour enchaîner les compétences sans jamais tomber en panne d'EP.",
+      tune: function (need) { need.w.ep += 26; need.w.epMax += 18; need.w.regen += 10; } }
+  ];
+
+  function teamVariants(mainName) {
+    var main = findAni(mainName);
+    if (!main) return [];
+    return TEAM_VARIANTS.map(function (v) {
+      var need = needsOf(main);
+      need.w = need.w || {};
+      ["dmgUp", "crit", "heal", "cleanse", "shield", "ep", "epMax", "regen"].forEach(function (k) {
+        if (typeof need.w[k] !== "number") need.w[k] = 0;
+      });
+      v.tune(need);
+      var t = autoTeam(mainName, { need: need, pins: pins() });
+      return t ? { v: v, t: t } : null;
+    }).filter(Boolean);
+  }
+
+  function variantPanel(mainName, cur) {
+    var list = teamVariants(mainName);
+    if (list.length < 2) return "";
+    var base = null;
+    list.forEach(function (x) { if (x.v.key === cur) base = x; });
+    return '<section class="varsec">' + skHead("Trois façons de la jouer") +
+      '<p class="etlead">La même pièce maîtresse, trois entourages. Choisis celui qui colle à ta manière de jouer : l\'analyse en dessous suit.</p>' +
+      '<div class="vargrid">' + list.map(function (x) {
+        var on = x.v.key === cur;
+        var names = x.t.members.map(function (a) { return a.name; });
+        return '<button type="button" class="varcard' + (on ? " on" : "") + '" data-variant="' + x.v.key + '">' +
+          '<div class="vhead"><b>' + esc(x.v.name) + "</b>" + (on ? '<span class="von">affichée</span>' : "") + "</div>" +
+          "<p>" + esc(x.v.desc) + "</p>" +
+          '<div class="vteam">' + x.t.members.map(function (a) {
+            return '<span class="vm">' + icon(a, 30) + "<i>" + esc(a.name) + "</i></span>";
+          }).join("") + "</div></button>";
+      }).join("") + "</div></section>";
+  }
+
+  /* ============ conseiller d'équipe ============
+     Utilisé par « Composer moi-même » : lit la composition en cours et
+     rend des remarques concrètes, chacune avec des noms cliquables. */
+
+  var SLOT_LABEL = { DPS: "un DPS", BREAK: "un BREAK", SUPPORT: "un soutien",
+                     HEAL: "un soigneur", REGEN: "un relais d'énergie" };
+
+  /* les meilleurs candidats d'un rôle, hors ceux déjà pris */
+  function topFor(role, exclude, n) {
+    var out = roleScores(role)
+      .filter(function (r) { return isFinal(r.a) && exclude.indexOf(r.a.name) < 0; })
+      .slice(0, n || 3).map(function (r) { return r.a; });
+    return out;
+  }
+  /* candidats qui frappent en ×1,6 un élément donné */
+  function coversElem(elem, exclude, n) {
+    return S.aniimos.filter(function (a) {
+      return isFinal(a) && exclude.indexOf(a.name) < 0 &&
+        (a.elems || []).some(function (e) { return chartOf(e).strong.indexOf(elem) >= 0; });
+    }).sort(function (x, y) { return hit(y) - hit(x); }).slice(0, n || 2);
+  }
+  /* candidats porteurs d'un apport précis */
+  function withTag(tag, exclude, n) {
+    return S.aniimos.filter(function (a) {
+      return isFinal(a) && exclude.indexOf(a.name) < 0 && tagsOf(a).indexOf(tag) >= 0;
+    }).sort(function (x, y) { return total(y) - total(x); }).slice(0, n || 2);
+  }
+  function nameLinks(list) {
+    return list.map(function (a) {
+      return '<button type="button" class="sugg" data-sugg="' + esc(a.name) + '">' +
+        icon(a, 20) + esc(a.name) + '<span class="sr">' + esc(a.role) + "</span></button>";
+    }).join("");
+  }
+
+  function coach(members) {
+    var have = members.map(function (a) { return a.name; });
+    var roles = {};
+    members.forEach(function (a) { roles[a.role] = (roles[a.role] || 0) + 1; });
+    var out = [];
+
+    /* 1. les rôles qui manquent */
+    if (!roles.BREAK) out.push({ k: "manque", t: "Il manque un BREAK",
+      d: "Sans briseur, la garde des ennemis ne tombe pas : pas de fenêtre de dégâts, et la capture devient difficile. C'est le trou le plus coûteux d'une composition.",
+      s: topFor("BREAK", have, 3) });
+    if (!roles.DPS) out.push({ k: "manque", t: "Il manque un DPS",
+      d: "Beaucoup d'utilitaire, mais personne pour convertir les fenêtres ouvertes en dégâts réels.",
+      s: topFor("DPS", have, 3) });
+    if (!roles.HEAL && !roles.REGEN) out.push({ k: "manque", t: "Ni soin ni relais d'énergie",
+      d: "Tenable sur un combat court, risqué dès que ça dure : plus personne ne rend de PV ni d'EP.",
+      s: topFor("HEAL", have, 2).concat(topFor("REGEN", have, 1)) });
+
+    /* 2. doublons de rôle */
+    Object.keys(roles).forEach(function (r) {
+      if (roles[r] < 2) return;
+      var manque = ["DPS", "BREAK", "SUPPORT", "HEAL"].filter(function (x) { return !roles[x]; });
+      out.push({ k: "conseil", t: roles[r] + " " + r + " dans la même équipe",
+        d: "Deux Aniimo du même rôle se marchent dessus." +
+           (manque.length ? " Échange-en un contre " + SLOT_LABEL[manque[0]] + "." : ""),
+        s: manque.length ? topFor(manque[0], have, 3) : [] });
+    });
+
+    /* 3. couverture élémentaire */
+    var covered = {}, exposed = {};
+    members.forEach(function (a) {
+      (a.elems || []).forEach(function (e) {
+        chartOf(e).strong.forEach(function (x) { covered[x] = 1; });
+        chartOf(e).weak.forEach(function (x) { exposed[x] = (exposed[x] || 0) + 1; });
+      });
+    });
+    var danger = Object.keys(exposed).filter(function (e) { return exposed[e] >= 2 && !covered[e]; });
+    danger.slice(0, 2).forEach(function (e) {
+      out.push({ k: "manque", t: "Rien ne répond à l'élément " + e,
+        d: "Plusieurs membres y prennent ×1,6 et personne ne frappe en avantage en retour. Un seul Aniimo suffit à renverser le rapport.",
+        s: coversElem(e, have, 3) });
+    });
+
+    /* 4. le noyau élémentaire et son amplificateur */
+    var core = {};
+    members.forEach(function (a) { (a.elems || []).forEach(function (e) { core[e] = (core[e] || 0) + 1; }); });
+    Object.keys(core).forEach(function (e) {
+      if (core[e] < 2) return;
+      var amp = S.aniimos.filter(function (a) {
+        return isFinal(a) && have.indexOf(a.name) < 0 && (a.elems || []).indexOf(e) >= 0 &&
+          (tagsOf(a).indexOf("dmgUp") >= 0 || tagsOf(a).indexOf("crit") >= 0 || tagsOf(a).indexOf("team") >= 0);
+      }).sort(function (x, y) { return total(y) - total(x); }).slice(0, 2);
+      if (amp.length) out.push({ k: "atout", t: "Noyau " + e + " à " + core[e] + " membres",
+        d: "Un amplificateur du même élément multiplie tout le noyau d'un coup : c'est le meilleur gain de dégâts disponible ici.",
+        s: amp });
+    });
+
+    /* 5. énergie */
+    var rgn = members.reduce(function (s2, a) { return s2 + a.regen; }, 0);
+    if (members.length >= 3 && rgn < 330) out.push({ k: "conseil", t: "Énergie un peu juste (REGEN cumulé " + rgn + ")",
+      d: "Les grosses compétences coûtent cher en EP. Un relais d'énergie évite les temps morts entre deux burst.",
+      s: withTag("ep", have, 2).concat(withTag("epMax", have, 1)) });
+
+    /* 6. confort : purge et bouclier */
+    var hasCleanse = members.some(function (a) { return tagsOf(a).indexOf("cleanse") >= 0; });
+    if (members.length >= 3 && !hasCleanse) out.push({ k: "conseil", t: "Personne ne dissipe les malus",
+      d: "Contre un ennemi qui empile les altérations, une purge sauve un run entier.",
+      s: withTag("cleanse", have, 2) });
+
+    /* 7. ce qui fonctionne déjà */
+    var good = [];
+    if (roles.BREAK) good.push("le BREAK est assuré");
+    if (roles.HEAL) good.push("un soigneur tient l'équipe");
+    if (roles.DPS && roles.BREAK && (roles.SUPPORT || roles.REGEN)) good.push("les trois rôles clés sont couverts");
+    if (Object.keys(covered).length >= 5) good.push("la couverture élémentaire est large (" + Object.keys(covered).length + " éléments frappés en ×1,6)");
+    if (good.length) out.push({ k: "atout", t: "Ce qui tient déjà debout",
+      d: cap(good.join(", ")) + ".", s: [] });
+
+    return out;
+  }
+
+  function coachPanel(members) {
+    var items = coach(members);
+    if (!items.length) return "";
+    var ORD = { manque: 0, conseil: 1, atout: 2 };
+    items.sort(function (x, y) { return ORD[x.k] - ORD[y.k]; });
+    var LBL = { manque: "À corriger", conseil: "Conseil", atout: "Atout" };
+    return '<section class="coach">' + skHead("Le conseil du Codex") +
+      '<p class="etlead">Ces remarques se recalculent à chaque changement. Clique un nom pour le placer dans une case libre.</p>' +
+      '<div class="coachgrid">' + items.map(function (it) {
+        return '<div class="citem c-' + it.k + '"><div class="chead"><span>' + LBL[it.k] + "</span><b>" +
+          esc(it.t) + "</b></div><p>" + esc(it.d) + "</p>" +
+          (it.s && it.s.length ? '<div class="csugg">' + nameLinks(it.s) + "</div>" : "") + "</div>";
+      }).join("") + "</div></section>";
   }
 
   function analyse(members, main) {
@@ -1426,7 +1764,9 @@
       return tb ? { members: tb.members, notes: tb.notes, main: tb.main, boss: tb.boss, bt: tb.bt } : null;
     }
     if (view.teamMode === "auto") {
-      var t = autoTeam(view.teamMain, { pins: pins() });
+      var t = null;
+      teamVariants(view.teamMain).forEach(function (x) { if (x.v.key === view.teamVar) t = x.t; });
+      if (!t) t = autoTeam(view.teamMain, { pins: pins() });
       return t ? { members: t.members, notes: t.notes, main: t.main, pinned: t.pinned } : null;
     }
     var ms = view.teamSlots.map(findAni).filter(Boolean);
@@ -1509,6 +1849,141 @@
       esc(a.role) + "</span></div>";
   }
 
+
+  /* ================= descriptions d'équipe générées ==================
+     Rien n'est écrit à la main : chaque phrase est reconstruite à partir
+     des statistiques, du trait et des compétences des membres présents.
+     Changer un Aniimo dans l'admin met donc le texte à jour tout seul. */
+
+  var ROLE_JOB = {
+    DPS:     "porte les dégâts",
+    BREAK:   "casse la garde",
+    SUPPORT: "soutient l'équipe",
+    REGEN:   "entretient l'énergie",
+    HEAL:    "tient l'équipe en vie"
+  };
+
+  /* la statistique qui définit l'Aniimo dans son rôle ; pour un soutien on
+     retient celle qui ressort vraiment, pas l'ATK par défaut. */
+  function keyStat(a) {
+    if (a.role === "SUPPORT") {
+      var c = [["REGEN", a.regen], ["BREAK", a.brk], ["ATK", a.atk]];
+      c.sort(function (x, y) { return y[1] - x[1]; });
+      return c[0][0] + " " + c[0][1];
+    }
+    var m = { DPS: ["ATK", a.atk], BREAK: ["BREAK", a.brk],
+              REGEN: ["REGEN", a.regen], HEAL: ["PV", a.hp] }[a.role];
+    return m ? m[0] + " " + m[1] : "";
+  }
+  /* la compétence la plus puissante, hors attaque de base */
+  function bestSkill(a) {
+    var best = null;
+    (a.sk2 || []).forEach(function (sk) {
+      if (!/^\d+$/.test(String(sk.m || ""))) return;
+      if (/attaque de base/i.test(sk.nf || sk.n)) return;
+      if (!best || +sk.m > +best.m) best = sk;
+    });
+    return best;
+  }
+  /* une phrase courte tirée de la description du trait */
+  function traitLine(a) {
+    var n = a.traitNameFr || a.traitName || a.trait;
+    var d = (a.traitDesc || a.traitFr || "").trim();
+    if (!n) return "";
+    if (!d) return "Trait " + n + ".";
+    d = d.charAt(0).toLowerCase() + d.slice(1);
+    if (d.length > 190) d = d.slice(0, 187).replace(/[\s,;.]+$/, "") + "…";
+    return "Trait " + n + " : " + d;
+  }
+
+  /* relation élémentaire d'un membre avec l'élément de l'équipe */
+  function elemRole(a, elem) {
+    if ((a.elems || []).indexOf(elem) >= 0) return "same";
+    return "neutral";
+  }
+
+  /* la ligne affichée sous chaque membre */
+  function autoPoint(a, elem) {
+    if (!a) return "";
+    var bits = [];
+    var job = ROLE_JOB[a.role] || "complète l'équipe";
+    var head = "Il " + job;
+    if (a.role === "HEAL" || /^(Glacy|Gracewing|Glameep|Luminelle|Fragrancier|Leafy|Witchin|Piopiota|Coraliz)$/.test(a.name)) {
+      head = (/e$/.test(a.name) ? "Elle " : "Il ") + job;
+    }
+    var ks = keyStat(a);
+    var bs = bestSkill(a);
+    var hit = "";
+    if (bs) {
+      hit = +bs.m >= 60
+        ? ", et " + (bs.nf || bs.n) + " frappe à " + bs.m
+        : ", et sa meilleure compétence plafonne à " + bs.m + " — ce n'est pas là qu'il faut chercher ses dégâts";
+    }
+    bits.push(head + (ks ? " avec " + ks : "") + hit + ".");
+    var tl = traitLine(a);
+    if (tl) bits.push(tl);
+    if (elemRole(a, elem) === "neutral")
+      bits.push("Il n'a pas l'élément de l'équipe : il est pris pour son kit.");
+    return bits.join(" ");
+  }
+
+  /* le chapeau de la carte : la logique élémentaire, calculée */
+  function autoLead(elem, members) {
+    var list = members.map(findAni).filter(Boolean);
+    var same = list.filter(function (a) { return (a.elems || []).indexOf(elem) >= 0; }).length;
+    var ch = chartOf(elem);
+    var t = same === 4 ? "Équipe mono-" + elem + " : les quatre membres partagent l'élément"
+          : same >= 2 ? "Noyau " + elem + " de " + same + " membres, complété par des kits neutres"
+          : "Équipe bâtie autour de " + elem + ", complétée par les meilleurs kits disponibles";
+    var f = ch.strong.length ? " L'élément " + elem + " frappe en ×1,6 " + ch.strong.join(", ") + "." : "";
+    var w = ch.weak.length ? " Il encaisse ×1,6 de " + ch.weak.join(" et ") + "." : "";
+    return t + "." + f + w;
+  }
+
+  /* le piège à éviter, déduit de la composition */
+  function autoRisk(elem, members) {
+    var list = members.map(findAni).filter(Boolean);
+    if (!list.length) return "";
+    var out = [];
+    var ch = chartOf(elem);
+    var frail = list.slice().sort(function (x, y) { return x.hp - y.hp; })[0];
+    var hasHeal = list.some(function (a) { return a.role === "HEAL"; });
+    var hasBreak = list.some(function (a) { return a.role === "BREAK"; });
+    var hasEp = list.some(function (a) { return a.role === "REGEN" || a.role === "SUPPORT"; });
+    if (ch.weak.length) out.push("Cette équipe encaisse ×1,6 face à " + ch.weak.join(" et ") + " : c'est le match-up à préparer.");
+    if (!hasHeal) out.push("Aucun soigneur dans la composition — c'est " +
+      (hasEp ? "l'énergie et les fenêtres de BREAK qui la font tenir" : "la vitesse d'exécution qui la fait tenir") + ".");
+    if (!hasBreak) out.push("Personne ne casse la garde : prévois un BREAK si la cible en a une.");
+    if (frail && frail.hp && frail.hp < 95) out.push("Surveille " + frail.name + " et ses " + frail.hp + " PV, c'est le maillon fragile.");
+    return out.join(" ");
+  }
+
+  /* pourquoi ce remplaçant, comparé au titulaire qu'il remplace */
+  function autoAlt(alt, holder, elem) {
+    if (!alt) return "";
+    var bits = [];
+    var ks = keyStat(alt), bs = bestSkill(alt);
+    bits.push((ks ? ks : "") + (bs ? (ks ? ", " : "") + (bs.nf || bs.n) + " à " + bs.m : "") + ".");
+    var tl = traitLine(alt);
+    if (tl) bits.push(tl);
+    if (holder && alt.name === holder.name) {
+      return "Il garde sa place dans les deux versions : c'est le socle de l'équipe.";
+    }
+    if (holder) {
+      var d = [];
+      if (alt.role !== holder.role) d.push("il change le rôle de la place (" + holder.role + " → " + alt.role + ")");
+      var stat = { DPS: "atk", BREAK: "brk", SUPPORT: "atk", REGEN: "regen", HEAL: "hp" }[alt.role] || "atk";
+      if (alt.role === holder.role && alt[stat] !== holder[stat]) {
+        d.push(alt[stat] > holder[stat] ? "il tape plus haut sur la statistique du rôle"
+                                        : "il rend un peu de statistique mais change ce que la place apporte");
+      }
+      if (elemRole(alt, elem) === "same" && elemRole(holder, elem) !== "same") d.push("il ramène l'élément de l'équipe");
+      if (elemRole(alt, elem) !== "same" && elemRole(holder, elem) === "same") d.push("il sort de l'élément de l'équipe");
+      if (d.length) bits.push(cap(d.join(", ")) + ".");
+    }
+    return bits.join(" ");
+  }
+
   /* les 9 équipes types, une par élément de boss */
   /* ordre demandé pour l'affichage des équipes par élément */
   var ELEM_TEAM_ORDER = ["Foudre", "Feu", "Glace", "Plante", "Eau", "Ténèbres", "Lumière", "Vent", "Roche"];
@@ -1518,11 +1993,12 @@
   }
   function elemTeamsPanel() {
     var h = '<section class="etsec">' + skHead("Les meilleures équipes par élément") +
-      '<p class="etlead">Une équipe conseillée face à un boss de chaque élément : un DPS qui le frappe en ×1,6, ' +
-      "un BREAK pour ouvrir la garde, un soutien et un soin. Clique une vignette pour ouvrir sa fiche.</p>" +
+      '<p class="etlead">Une équipe bâtie autour de chaque élément : un DPS pour porter les dégâts, ' +
+      "un BREAK pour ouvrir la garde, un soutien et un relais d'énergie. Clique une vignette pour ouvrir sa fiche.</p>" +
       goldNote("À savoir",
         "Les teams proposées ont été faites de manière à optimiser au mieux vos combats. " +
-        "Chaque place propose un remplaçant : le second Aniimo fait aussi bien, autrement.") +
+        "Chaque élément a sa Team 1 et sa Team 2, à jouer selon les Aniimo dont tu disposes.") +
+      tipNote(TIP_CLICK) +
       /* même effet d'arrivée que la Tiers List */
       '<div class="etboard"><div class="etgrid' + animClass("tiers") + '">';
     elemTeamOrder().forEach(function (e, ei) {
@@ -1548,6 +2024,7 @@
       }
       h += '<div class="etwhy"><span>Frappé fort par</span>' +
         (ch.weak.map(elemChip).join(" ") || "—") + "</div>";
+      if (t.lead) h += '<p class="etlead2">' + esc(t.lead) + "</p>";
       if (t.points && t.points.length) {
         h += '<ul class="etpts">' + t.points.map(function (pt) {
           var a2 = findAni(pt.t);
@@ -1582,7 +2059,8 @@
 
     if (view.teamMode === "auto") {
       h += '<div class="card pickcard"><div class="f"><label>Aniimo principal</label>' + aniPicker("tmain", view.teamMain) + "</div>" +
-        '<p class="rank">Les 3 autres sont choisis automatiquement : rôles complémentaires, bonus élémentaires qui profitent à ton principal, et couverture de ses faiblesses.</p></div>';
+        '<p class="rank">Les 3 autres sont choisis automatiquement : rôles complémentaires, bonus élémentaires qui profitent à ton principal, et couverture de ses faiblesses.</p></div>' +
+        variantPanel(view.teamMain, view.teamVar);
     } else if (view.teamMode === "boss") {
       h += elemTeamsPanel();
       return h;
@@ -1591,7 +2069,8 @@
         view.teamSlots.map(function (v, i) {
           return '<div class="f"><label>Aniimo ' + (i + 1) + "</label>" + aniPicker("ts" + i, v) + "</div>";
         }).join("") + "</div>" +
-        '<p class="rank">Les conseils s\'adaptent à ta composition : forces, faiblesses et rotation sont recalculés à chaque changement.</p></div>';
+        '<p class="rank">Les conseils s\'adaptent à ta composition : forces, faiblesses et rotation sont recalculés à chaque changement.</p></div>' +
+        coachPanel(view.teamSlots.map(findAni).filter(Boolean));
     }
 
     var T = teamMembers();
@@ -1669,32 +2148,432 @@
   }
 
   /* ---------------- admin ---------------- */
+  /* ---------------- panneau admin : coquille ----------------
+     Les sections sont rangées par famille dans une colonne de gauche,
+     avec une description et un compteur : on trouve où aller sans lire
+     une rangée de dix boutons identiques. */
+  var ADMIN_SECS = [
+    { g: "Contenu", k: "aniimo", n: "Aniimo",
+      d: "Fiches, statistiques, compétences et icônes",
+      c: function () { return S.aniimos.length + " fiches"; } },
+    { g: "Contenu", k: "specs", n: "Spécialités du Foyer",
+      d: "Les 9 éléments et leur description",
+      c: function () { return (S.specs || []).length + " éléments"; } },
+    { g: "Contenu", k: "jobs", n: "Métiers",
+      d: "Noms, couleurs, rendements et icônes",
+      c: function () { return (S.jobs || []).length + " métiers"; } },
+    { g: "Contenu", k: "abil", n: "Abilités",
+      d: "Onglets HomeLand et Classique",
+      c: function () { return (S.abilities || []).length + " onglets"; } },
+    { g: "Contenu", k: "pages", n: "Catégories du site",
+      d: "Ajouter, renommer, masquer ou réordonner les rubriques",
+      c: function () { return (S.pages || []).length + " catégories"; } },
+
+    { g: "Jeu", k: "bosses", n: "Boss et équipes",
+      d: "Liste des boss et compositions par élément",
+      c: function () { return (S.bosses || []).length + " boss"; } },
+    { g: "Jeu", k: "tiers", n: "Tiers List",
+      d: "Corriger les paliers et les phrases affichées",
+      c: function () { return Object.keys(tFix()).length + " corrections"; } },
+    { g: "Jeu", k: "votes", n: "Votes",
+      d: "Compter les bulletins et valider les propositions",
+      c: function () { var n = Object.keys(tally()).length; return n ? n + " en attente" : "aucun"; } },
+    { g: "Jeu", k: "team", n: "Équipe par défaut",
+      d: "L'équipe présentée à l'arrivée sur l'onglet Team",
+      c: function () { return ((S.team || {}).main || "—"); } },
+
+    { g: "Apparence", k: "effets", n: "Effets d'arrivée",
+      d: "L'animation jouée en entrant dans chaque catégorie",
+      c: function () { return (S.effects || []).length + " effets"; } },
+    { g: "Apparence", k: "style", n: "Écriture et pétillement",
+      d: "Couleurs du reflet, des étincelles et des encadrés dorés",
+      c: function () { return "3 réglages"; } },
+    { g: "Apparence", k: "acces", n: "Accès au panneau",
+      d: "Phrase de passe et visibilité de la rubrique Gestion",
+      c: function () { return (S.meta || {}).adminHash ? "verrouillé" : "ouvert"; } }
+  ];
+
   function viewAdmin() {
-    var secs = [["aniimo", "Aniimo"], ["skico", "Icônes de compétences"], ["specs", "Spécialités"],
-      ["jobs", "Métiers"], ["abil", "Abilités"], ["bosses", "Boss"], ["tiers", "Tiers List"],
-      ["effets", "Effets"], ["team", "Équipe par défaut"]];
-    var h = '<div class="head"><h1>Panneau admin</h1><span class="count">' + S.aniimos.length + " fiches</span></div>" +
-      '<p class="sub">Modifie les données ici : toutes les fiches, classements et tiers lists se recalculent à partir de ces valeurs.</p>' +
-      '<div class="banner"><b>' + (draftLoaded ? "Brouillon local" : "Version publiée") + "</b>" +
-      '<span style="color:var(--ink-2)">Publier remplace la page pour tous ceux qui ont le lien.</span><span style="flex:1"></span>' +
+    var cur = view.adminSec;
+    if (!ADMIN_SECS.some(function (x) { return x.k === cur; })) cur = view.adminSec = "aniimo";
+    var groups = [];
+    ADMIN_SECS.forEach(function (x) { if (groups.indexOf(x.g) < 0) groups.push(x.g); });
+
+    var h = '<div class="head"><h1>Panneau admin</h1><span class="count">' +
+      (draftLoaded ? "brouillon local" : "version publiée") + "</span></div>" +
+      '<div class="banner"><b>' + (draftLoaded ? "Modifications non publiées" : "À jour") + "</b>" +
+      '<span style="color:var(--ink-2)">Publier remplace la page pour tous ceux qui ont le lien.</span>' +
+      '<span style="flex:1"></span>' +
       '<button class="btn primary" id="publish">Publier</button>' +
       '<button class="btn" id="exportjson">Exporter le JSON</button>' +
       '<button class="btn" id="importjson">Importer un JSON</button>' +
-      '<button class="btn danger" id="revert">Abandonner le brouillon</button></div>' +
-      '<div class="modes">' + secs.map(function (s) {
-        return '<button class="btn' + (view.adminSec === s[0] ? " primary" : "") + '" data-asec="' + s[0] + '">' + s[1] + "</button>";
-      }).join("") + "</div>";
+      '<button class="btn danger" id="revert">Abandonner le brouillon</button></div>';
 
-    if (view.adminSec === "aniimo") h += adminAniimo();
-    else if (view.adminSec === "skico") h += adminSkillIcons();
-    else if (view.adminSec === "specs") h += adminSpecs();
-    else if (view.adminSec === "jobs") h += adminJobs();
-    else if (view.adminSec === "bosses") h += adminBosses();
-    else if (view.adminSec === "abil") h += adminAbil();
-    else if (view.adminSec === "tiers") h += adminTiers();
-    else if (view.adminSec === "effets") h += adminEffects();
-    else h += adminTeam() + adminLockCard();
+    h += '<div class="adminshell"><nav class="adminnav">';
+    groups.forEach(function (g) {
+      /* chaque famille dans son encadré léger */
+      h += '<div class="anbox"><div class="angroup">' + esc(g) + "</div>";
+      ADMIN_SECS.filter(function (x) { return x.g === g; }).forEach(function (x) {
+        var n = "";
+        try { n = x.c(); } catch (e) { n = ""; }
+        h += '<button class="ansec' + (x.k === cur ? " on" : "") + '" data-asec="' + x.k + '">' +
+          "<b>" + esc(x.n) + "</b><span>" + esc(x.d) + '</span><i class="ancount">' + esc(n) + "</i></button>";
+      });
+      h += "</div>";
+    });
+    h += '</nav><div class="adminmain">';
+
+    if (cur === "aniimo") h += adminAniimo();
+    else if (cur === "specs") h += adminSpecs();
+    else if (cur === "jobs") h += adminJobs();
+    else if (cur === "abil") h += adminAbil();
+    else if (cur === "pages") h += adminPages();
+    else if (cur === "bosses") h += adminBosses();
+    else if (cur === "tiers") h += adminTiers();
+    else if (cur === "votes") h += adminVotes();
+    else if (cur === "team") h += adminTeam();
+    else if (cur === "effets") h += adminEffects();
+    else if (cur === "style") h += adminStyle();
+    else h += adminLockCard();
+
+    return h + "</div></div>";
+  }
+
+
+  /* ---------------- admin : catégories du site ---------------- */
+  var PAGE_KINDS = [
+    ["roster", "Liste d'Aniimo (tableau)"], ["power", "Compétences"],
+    ["abil", "Abilités"], ["jobs", "Métiers"], ["team", "Team"],
+    ["tier", "Tiers List"], ["wip", "Rédaction en cours"], ["admin", "Panneau admin"]
+  ];
+  function userTabs() { S.tabs = S.tabs || null; return S.tabs; }
+
+  function adminPages() {
+    /* la liste éditable démarre sur celle du code, puis vit dans le brouillon */
+    var list = userTabs() || TABS.map(function (t) {
+      return { id: t.id, label: t.label, kind: t.kind, grp: t.grp, hidden: !!t.hidden };
+    });
+    var h = '<div class="card"><h3>Catégories du site</h3>' +
+      "<p>Ce sont les rubriques du menu de gauche. Renomme-les, change leur ordre, masque-en une le temps de la préparer, " +
+      "ou ajoute une rubrique « Rédaction en cours » qui affichera l'ourson et la note en attendant son contenu.</p>" +
+      '<div class="tablewrap"><table class="tight" id="pagetable"><thead><tr>' +
+      "<th>Ordre</th><th>Nom affiché</th><th>Contenu</th><th>Groupe</th><th>Visible</th><th></th>" +
+      "</tr></thead><tbody>";
+    list.forEach(function (t, i) {
+      var locked = t.kind === "admin";
+      h += "<tr data-pg='" + i + "'>" +
+        '<td class="num"><button type="button" class="btn sm" data-pgup="' + i + '"' +
+        (i ? "" : " disabled") + '>↑</button> <button type="button" class="btn sm" data-pgdn="' + i + '"' +
+        (i < list.length - 1 ? "" : " disabled") + ">↓</button></td>" +
+        '<td><input data-pk="label" value="' + esc(t.label) + '" style="min-width:170px"></td>' +
+        '<td><select data-pk="kind"' + (locked ? " disabled" : "") + ">" + PAGE_KINDS.map(function (k) {
+          return '<option value="' + k[0] + '"' + (k[0] === t.kind ? " selected" : "") + ">" + esc(k[1]) + "</option>";
+        }).join("") + "</select></td>" +
+        '<td><select data-pk="grp"><option value="Fiches"' + (t.grp === "Fiches" ? " selected" : "") + ">Fiches</option>" +
+        '<option value="Gestion"' + (t.grp === "Gestion" ? " selected" : "") + ">Gestion</option></select></td>" +
+        '<td><label class="f check"><input type="checkbox" data-pk="show"' + (t.hidden ? "" : " checked") +
+        (locked ? " disabled" : "") + "> <span></span></label></td>" +
+        "<td>" + (locked ? '<span class="rank">rubrique système</span>'
+          : '<button type="button" class="btn sm danger" data-pgdel="' + i + '">Supprimer</button>') + "</td></tr>";
+    });
+    h += '</tbody></table></div><div class="actions" style="margin-top:10px">' +
+      '<button class="btn primary" id="savepages">Enregistrer les catégories</button>' +
+      '<button class="btn" id="addpage">+ Nouvelle catégorie</button>' +
+      '<button class="btn" id="resetpages">Revenir aux catégories d\'origine</button></div>' +
+      '<p class="note">Une catégorie « Rédaction en cours » affiche l\'illustration et la note d\'attente : ' +
+      "pratique pour annoncer une rubrique avant de l'écrire.</p></div>";
     return h;
+  }
+
+  function readPages() {
+    var out = [];
+    document.querySelectorAll("#pagetable tbody tr").forEach(function (tr) {
+      var g = function (k) { return tr.querySelector('[data-pk="' + k + '"]'); };
+      var cur = (userTabs() || TABS)[+tr.dataset.pg] || {};
+      out.push({
+        id: cur.id, label: g("label").value.trim() || cur.label,
+        kind: g("kind").disabled ? cur.kind : g("kind").value,
+        grp: g("grp").value,
+        hidden: g("show").disabled ? false : !g("show").checked
+      });
+    });
+    return out;
+  }
+  function bindAdminPages() {
+    on("savepages", "onclick", function () {
+      S.tabs = readPages(); persist("Catégories enregistrées"); render();
+    });
+    on("addpage", "onclick", function () {
+      var l = userTabs() || TABS.map(function (t) {
+        return { id: t.id, label: t.label, kind: t.kind, grp: t.grp, hidden: !!t.hidden };
+      });
+      l.splice(l.length - 1, 0, { id: "p" + Date.now().toString(36), label: "Nouvelle catégorie",
+        kind: "wip", grp: "Fiches", hidden: false });
+      S.tabs = l; persist("Catégorie ajoutée"); render();
+    });
+    on("resetpages", "onclick", function () {
+      if (!confirm("Revenir aux catégories d'origine ?")) return;
+      S.tabs = null; persist("Catégories réinitialisées"); render();
+    });
+    function move(i, d) {
+      var l = readPages();
+      if (i + d < 0 || i + d >= l.length) return;
+      var x = l.splice(i, 1)[0]; l.splice(i + d, 0, x);
+      S.tabs = l; persist("Ordre modifié"); render();
+    }
+    document.querySelectorAll("[data-pgup]").forEach(function (b) {
+      b.onclick = function () { move(+b.dataset.pgup, -1); };
+    });
+    document.querySelectorAll("[data-pgdn]").forEach(function (b) {
+      b.onclick = function () { move(+b.dataset.pgdn, 1); };
+    });
+    document.querySelectorAll("[data-pgdel]").forEach(function (b) {
+      b.onclick = function () {
+        var l = readPages(), t = l[+b.dataset.pgdel];
+        if (!confirm("Supprimer la catégorie « " + t.label + " » ?")) return;
+        l.splice(+b.dataset.pgdel, 1);
+        S.tabs = l; if (view.tab === t.id) view.tab = "tous";
+        persist("Catégorie supprimée"); render();
+      };
+    });
+  }
+
+  /* ---------------- admin : écriture et pétillement ----------------
+     Un style est une petite fiche réutilisable (couleurs, nombre
+     d'étincelles, vitesse, reflet, liseré). On les crée ici, puis on
+     rattache un style à chaque rubrique du site. */
+  /* les cinq animations d'écriture et les cinq encadrements disponibles */
+  var TEXT_FX = [
+    ["shine",  "Reflet balayant",  "un éclat glisse sur les lettres"],
+    ["pulse",  "Halo qui respire", "le nom s'éclaire et s'éteint doucement"],
+    ["wave",   "Vague",            "les lettres montent et descendent l'une après l'autre"],
+    ["glitch", "Glitch",           "un décalage chromatique bref, par à-coups"],
+    ["neon",   "Néon",             "un contour lumineux qui vibre légèrement"],
+    ["none",   "Aucun",            "texte fixe"]
+  ];
+  var FRAME_FX = [
+    ["gold",    "Liseré tournant", "un dégradé fait le tour du cadre"],
+    ["dashed",  "Pointillés",      "des tirets défilent le long du bord"],
+    ["corners", "Équerres",        "quatre coins marqués, pas de cadre complet"],
+    ["glow",    "Halo",            "une lueur diffuse qui respire"],
+    ["double",  "Double filet",    "deux traits fins, sobre et net"],
+    ["none",    "Aucun",           "bord simple"]
+  ];
+  var STYLE_BUILTIN = [
+    { key: "rb",    name: "Rouge et bleu",   spRed: "#FF4B57", spBlue: "#4FA8FF",
+      gold: "#C9A227", sparkles: 5, speed: 2.1, fx: "shine", frame: "gold" },
+    { key: "or",    name: "Or classique",    spRed: "#FFD97A", spBlue: "#FFF3D0",
+      gold: "#C9A227", sparkles: 3, speed: 2.6, fx: "shine", frame: "gold" },
+    { key: "glace", name: "Glacial",         spRed: "#7CE7FF", spBlue: "#FFFFFF",
+      gold: "#4FD0E0", sparkles: 4, speed: 2.4, fx: "pulse",  frame: "glow" },
+    { key: "braise", name: "Braise",         spRed: "#FF7A3C", spBlue: "#FFD166",
+      gold: "#E8702A", sparkles: 5, speed: 1.6, fx: "wave",   frame: "dashed" },
+    { key: "emer",  name: "Émeraude",        spRed: "#48E39B", spBlue: "#CFFFE6",
+      gold: "#2FA36B", sparkles: 3, speed: 2.8, fx: "neon",   frame: "corners" },
+    { key: "neon",  name: "Néon violet",     spRed: "#C77DFF", spBlue: "#7B2FFF",
+      gold: "#A855F7", sparkles: 5, speed: 1.4, fx: "glitch", frame: "double" },
+    { key: "rose",  name: "Pétale",          spRed: "#FF8FB1", spBlue: "#FFD6E7",
+      gold: "#E0559B", sparkles: 4, speed: 3.0, fx: "wave",   frame: "glow" },
+    { key: "abysse", name: "Abysse",         spRed: "#4FA8FF", spBlue: "#8FE3FF",
+      gold: "#2E6FD9", sparkles: 3, speed: 3.2, fx: "pulse",  frame: "double" },
+    { key: "mono",  name: "Argent",          spRed: "#E8ECF4", spBlue: "#9AA6BF",
+      gold: "#8E99AE", sparkles: 2, speed: 2.9, fx: "neon",   frame: "dashed" },
+    { key: "calm",  name: "Sobre",           spRed: "#FF4B57", spBlue: "#4FA8FF",
+      gold: "#C9A227", sparkles: 0, speed: 2.1, fx: "none", frame: "none" }
+  ];
+  function styleList() {
+    if (!S.textStyles || !S.textStyles.length) S.textStyles = JSON.parse(JSON.stringify(STYLE_BUILTIN));
+    S.textStyles.forEach(normStyle);
+    return S.textStyles;
+  }
+  /* un style enregistré avant l'arrivée des effets nommés */
+  function normStyle(c) {
+    if (typeof c.fx !== "string") c.fx = c.shine === false ? "none" : "shine";
+    if (typeof c.frame !== "string") c.frame = c.frame === false ? "none" : "gold";
+    delete c.shine;
+    return c;
+  }
+  function styleByKey(k) {
+    var l = styleList();
+    for (var i = 0; i < l.length; i++) if (l[i].key === k) return l[i];
+    return l[0];
+  }
+  function pageStyles() { S.pageStyle = S.pageStyle || {}; return S.pageStyle; }
+  /* le style rattaché à une rubrique, sinon le premier de la liste */
+  function styleOf(page) { return styleByKey(pageStyles()[page] || styleList()[0].key); }
+
+  /* applique le style de la rubrique ouverte */
+  function applyStyle(st) {
+    var c = st || styleOf(view.tab), r = document.documentElement;
+    r.style.setProperty("--sp-red", c.spRed);
+    r.style.setProperty("--sp-blue", c.spBlue);
+    r.style.setProperty("--gold-line", c.gold);
+    r.style.setProperty("--sp-speed", c.speed + "s");
+    TEXT_FX.forEach(function (f) { r.classList.toggle("tfx-" + f[0], c.fx === f[0]); });
+    FRAME_FX.forEach(function (f) { r.classList.toggle("frm-" + f[0], c.frame === f[0]); });
+    for (var i = 1; i <= 5; i++) r.classList.toggle("sp-off-" + i, i > (c.sparkles || 0));
+  }
+
+  function stylePreview(c, id) {
+    var sp = "";
+    for (var i = 1; i <= 5; i++) {
+      sp += '<span class="sp sp' + i + '"' + (i > c.sparkles ? ' style="display:none"' : "") + ">" + STAR + "</span>";
+    }
+    var txt = "Tous les Aniimos";
+    var letters = txt.split("").map(function (ch, li) {
+      return '<i style="--l:' + li + '">' + (ch === " " ? "&nbsp;" : ch) + "</i>";
+    }).join("");
+    return '<div class="stprev tfx-' + esc(c.fx) + " frm-" + esc(c.frame) + '" id="' + id +
+      '" style="--sp-red:' + esc(c.spRed) + ";--sp-blue:" + esc(c.spBlue) +
+      ";--gold-line:" + esc(c.gold) + ";--sp-speed:" + c.speed + 's">' +
+      '<button class="tab" aria-current="true"><span class="tablab">' +
+      '<span class="shine" data-txt="' + esc(txt) + '">' + letters + "</span>" +
+      sp + "</span></button>" +
+      '<p class="abilnote"><span>Exemple</span>L\'encadré avec son effet.</p></div>';
+  }
+
+  function adminStyle() {
+    var L = styleList(), PG = tabs().filter(function (t) { return t.kind !== "admin"; });
+
+    /* 1. rattachement rubrique → style */
+    var h = '<div class="card"><h3>Style d\'écriture par rubrique</h3>' +
+      "<p>Chaque rubrique du site peut porter son propre style : couleur des étincelles, reflet sur le nom, " +
+      "liseré des encadrés dorés. Crée les styles plus bas, puis rattache-les ici.</p>" +
+      '<div class="tablewrap"><table class="tight" id="stpages"><thead><tr>' +
+      "<th>Rubrique</th><th>Style appliqué</th><th></th></tr></thead><tbody>";
+    PG.forEach(function (t) {
+      var cur = pageStyles()[t.id] || L[0].key;
+      h += "<tr data-stp='" + esc(t.id) + "'><td><b>" + esc(t.label) + "</b></td>" +
+        '<td><select data-stk="style">' + L.map(function (x) {
+          return '<option value="' + esc(x.key) + '"' + (x.key === cur ? " selected" : "") + ">" + esc(x.name) + "</option>";
+        }).join("") + "</select></td>" +
+        '<td><button type="button" class="btn sm" data-stgo="' + esc(t.id) + '">Voir la rubrique</button></td></tr>';
+    });
+    h += '</tbody></table></div><div class="actions" style="margin-top:10px">' +
+      '<button class="btn primary" id="savestpages">Enregistrer les rattachements</button>' +
+      '<button class="btn" id="stall">Appliquer le premier style partout</button></div></div>';
+
+    /* 2. la bibliothèque de styles */
+    h += '<div class="card" style="margin-top:14px"><h3>Les styles disponibles</h3>' +
+      "<p>Modifie un style et toutes les rubriques qui l'utilisent suivent. L'aperçu de chaque fiche est en direct.</p>" +
+      '<div class="stgrid">';
+    L.forEach(function (c, i) {
+      var used = PG.filter(function (t) { return (pageStyles()[t.id] || L[0].key) === c.key; }).length;
+      h += '<div class="stcard" data-sti="' + i + '">' +
+        '<div class="sthead"><input data-sf="name" value="' + esc(c.name) + '">' +
+        '<span class="rank">' + (used ? used + " rubrique" + (used > 1 ? "s" : "") : "non utilisé") + "</span>" +
+        (L.length > 1 ? '<button type="button" class="btn sm danger" data-stdel="' + i + '">Supprimer</button>' : "") +
+        "</div>" +
+        '<div class="strow">' +
+        '<label class="f"><span>Étincelle 1</span><input type="color" data-sf="spRed" value="' + esc(c.spRed) + '"></label>' +
+        '<label class="f"><span>Étincelle 2</span><input type="color" data-sf="spBlue" value="' + esc(c.spBlue) + '"></label>' +
+        '<label class="f"><span>Encadrés</span><input type="color" data-sf="gold" value="' + esc(c.gold) + '"></label>' +
+        "</div>" +
+        '<div class="strow">' +
+        '<label class="f wide"><span>Étincelles : <b class="stn">' + c.sparkles + '</b></span>' +
+        '<input type="range" data-sf="sparkles" min="0" max="5" step="1" value="' + c.sparkles + '"></label>' +
+        '<label class="f wide"><span>Vitesse : <b class="stv">' + c.speed + '</b> s</span>' +
+        '<input type="range" data-sf="speed" min="0.8" max="4" step="0.1" value="' + c.speed + '"></label>' +
+        "</div>" +
+        '<div class="strow">' +
+        '<label class="f wide"><span>Effet d\'écriture</span><select data-sf="fx">' +
+        TEXT_FX.map(function (f) {
+          return '<option value="' + f[0] + '"' + (f[0] === c.fx ? " selected" : "") +
+            ' title="' + esc(f[2]) + '">' + esc(f[1]) + "</option>";
+        }).join("") + "</select></label>" +
+        '<label class="f wide"><span>Encadrement</span><select data-sf="frame">' +
+        FRAME_FX.map(function (f) {
+          return '<option value="' + f[0] + '"' + (f[0] === c.frame ? " selected" : "") +
+            ' title="' + esc(f[2]) + '">' + esc(f[1]) + "</option>";
+        }).join("") + "</select></label>" +
+        "</div>" +
+        stylePreview(c, "stp" + i) + "</div>";
+    });
+    h += '</div><div class="actions" style="margin-top:12px">' +
+      '<button class="btn primary" id="savestyles">Enregistrer les styles</button>' +
+      '<button class="btn" id="addstyle">+ Nouveau style</button>' +
+      '<button class="btn" id="resetstyle">Revenir aux styles d\'origine</button></div></div>';
+    return h;
+  }
+
+  function readStyleCard(card) {
+    var g = function (k) { return card.querySelector('[data-sf="' + k + '"]'); };
+    var i = +card.dataset.sti, cur = styleList()[i] || {};
+    return {
+      key: cur.key || ("s" + Date.now().toString(36)),
+      name: g("name").value.trim() || "Style",
+      spRed: g("spRed").value, spBlue: g("spBlue").value, gold: g("gold").value,
+      sparkles: +g("sparkles").value, speed: +g("speed").value,
+      fx: g("fx").value, frame: g("frame").value
+    };
+  }
+
+  function bindAdminStyle() {
+    /* aperçu en direct, sans recharger la page */
+    document.querySelectorAll(".stcard").forEach(function (card) {
+      function live() {
+        var c = readStyleCard(card), pv = card.querySelector(".stprev");
+        pv.style.setProperty("--sp-red", c.spRed);
+        pv.style.setProperty("--sp-blue", c.spBlue);
+        pv.style.setProperty("--gold-line", c.gold);
+        pv.style.setProperty("--sp-speed", c.speed + "s");
+        pv.querySelectorAll(".sp").forEach(function (el, i) {
+          el.style.display = i < c.sparkles ? "" : "none";
+        });
+        TEXT_FX.forEach(function (f) { pv.classList.toggle("tfx-" + f[0], c.fx === f[0]); });
+        FRAME_FX.forEach(function (f) { pv.classList.toggle("frm-" + f[0], c.frame === f[0]); });
+        var n = card.querySelector(".stn"), v = card.querySelector(".stv");
+        if (n) n.textContent = c.sparkles;
+        if (v) v.textContent = c.speed;
+      }
+      card.querySelectorAll("[data-sf]").forEach(function (el) { el.oninput = live; el.onchange = live; });
+    });
+    on("savestyles", "onclick", function () {
+      var out = [];
+      document.querySelectorAll(".stcard").forEach(function (c) { out.push(readStyleCard(c)); });
+      S.textStyles = out;
+      persist("Styles enregistrés"); render();
+    });
+    on("addstyle", "onclick", function () {
+      var l = styleList();
+      l.push({ key: "s" + Date.now().toString(36), name: "Nouveau style",
+        spRed: "#FF4B57", spBlue: "#4FA8FF", gold: "#C9A227",
+        sparkles: 3, speed: 2.1, fx: "shine", frame: "gold" });
+      persist("Style ajouté"); render();
+    });
+    document.querySelectorAll("[data-stdel]").forEach(function (b) {
+      b.onclick = function () {
+        var l = styleList(), i = +b.dataset.stdel, k = (l[i] || {}).key;
+        if (l.length < 2 || !confirm("Supprimer le style « " + l[i].name + " » ?")) return;
+        l.splice(i, 1);
+        Object.keys(pageStyles()).forEach(function (p2) {
+          if (pageStyles()[p2] === k) delete pageStyles()[p2];
+        });
+        persist("Style supprimé"); render();
+      };
+    });
+    on("savestpages", "onclick", function () {
+      var m = pageStyles();
+      document.querySelectorAll("#stpages tbody tr").forEach(function (tr) {
+        m[tr.dataset.stp] = tr.querySelector('[data-stk="style"]').value;
+      });
+      persist("Rattachements enregistrés"); render();
+    });
+    on("stall", "onclick", function () {
+      var k = styleList()[0].key, m = {};
+      tabs().forEach(function (t) { m[t.id] = k; });
+      S.pageStyle = m; persist("Style appliqué partout"); render();
+    });
+    document.querySelectorAll("[data-stgo]").forEach(function (b) {
+      b.onclick = function () {
+        view.tab = b.dataset.stgo; animate = true; render(); animate = false; window.scrollTo(0, 0);
+      };
+    });
+    on("resetstyle", "onclick", function () {
+      if (!confirm("Revenir aux styles d'origine ?")) return;
+      S.textStyles = null; S.pageStyle = {};
+      persist("Styles réinitialisés"); render();
+    });
   }
 
   function adminAniimo() {
@@ -1870,7 +2749,7 @@
       var saved = elemTeams()[e] || { members: ["", "", "", ""], note: "" };
       var mem = (saved.members || []).slice();
       while (mem.length < 4) mem.push("");
-      var alt = (saved.alts || []).map(function (x) { return (x || {}).n || ""; });
+      var alt = (saved.alts || []).map(altName);
       while (alt.length < 4) alt.push("");
       var t = elemTeamOf(e);
       h += '<div class="etarow" data-elem="' + esc(e) + '">' +
@@ -2048,6 +2927,123 @@
       S.abilities.push({ key: "onglet" + S.abilities.length, label: "Nouvel onglet",
                          title: "", intro: "", note: "", items: [] });
       persist("Onglet ajouté"); render();
+    });
+  }
+
+
+  /* ---------------- admin : votes de la communauté ---------------- */
+  function adminVotes() {
+    var T = tally();
+    var ranked = allScores().filter(function (r) { return isFinal(r.a); });
+    var best = ranked.length ? ranked[0].s : 0;
+    var rows = Object.keys(T).filter(function (n) {
+      var t = tallyOf(n); return t.up || t.down;
+    }).sort(function (x, y) {
+      var a = tallyOf(x), b = tallyOf(y);
+      return (b.up + b.down) - (a.up + a.down);
+    });
+
+    var h = '<div class="card"><h3>Votes de la communauté <span class="betatag">BETA</span></h3>' +
+      "<p>Les visiteurs proposent de monter ou descendre un Aniimo d'un palier, puis t'envoient un bulletin. " +
+      "Colle-le ici pour l'ajouter au comptage. Rien ne bouge dans la Tiers List tant que tu n'as pas appliqué une proposition : " +
+      "tu gardes la main sur chaque changement. Le même champ accepte les avis donnés sur la liste d'un joueur : " +
+      "ils sont alors comptés sur cette liste, vignette par vignette.</p>" +
+      '<div class="row"><div class="f" style="flex:2"><label for="vpaste">Bulletin ou avis reçu</label>' +
+      '<input id="vpaste" type="text" placeholder="colle ici le code copié par le visiteur"></div>' +
+      '<div class="f"><label for="vw">Poids de ce bulletin</label>' +
+      '<input id="vw" type="number" value="1" min="1" max="50" style="width:90px"></div></div>' +
+      '<div class="actions" style="margin-top:8px">' +
+      '<button class="btn primary" id="vadd">Ajouter au comptage</button>' +
+      '<label class="f check" style="margin-left:6px"><input type="checkbox" id="voteon"' +
+      (S.voteOn ? " checked" : "") + '> <span>Ouvrir le vote sur le site</span></label>' +
+      '<button class="btn danger" id="vreset">Remettre les compteurs à zéro</button></div>';
+
+    if (!rows.length) {
+      h += '<p class="note">Aucun vote pour le moment.</p></div>';
+      return h;
+    }
+    h += '<div class="tablewrap" style="margin-top:12px"><table class="tight"><thead><tr>' +
+      "<th></th><th>Aniimo</th><th>Palier actuel</th><th>▲ Monter</th><th>▼ Descendre</th>" +
+      "<th>Proposition</th><th></th></tr></thead><tbody>";
+    rows.forEach(function (n) {
+      var a = findAni(n); if (!a) return;
+      var t = tallyOf(n), sc = null;
+      ranked.forEach(function (r) { if (r.a.name === n) sc = r; });
+      var band = tFix()[n] ? bandByKey(tFix()[n]) : (sc ? tierOf(sc.s, best) : null);
+      var i = band ? TIERS.map(function (x) { return x.k; }).indexOf(band.k) : -1;
+      var dir = t.up === t.down ? "" : (t.up > t.down ? "up" : "down");
+      var target = i < 0 || !dir ? null
+        : TIERS[Math.max(0, Math.min(TIERS.length - 1, i + (dir === "up" ? -1 : 1)))];
+      h += "<tr>" + "<td>" + icon(a, 28) + "</td><td><b>" + esc(n) + "</b></td>" +
+        "<td>" + (band ? '<span class="tchip" style="background:' + band.color + '">' + band.k + "</span>" : "—") + "</td>" +
+        '<td class="num">' + t.up + '</td><td class="num">' + t.down + "</td>" +
+        "<td>" + (target && target.k !== (band || {}).k
+          ? '<span class="tchip" style="background:' + target.color + '">' + target.k + "</span>"
+          : '<span class="rank">égalité, rien à trancher</span>') + "</td>" +
+        "<td>" + (target && target.k !== (band || {}).k
+          ? '<button type="button" class="btn sm primary" data-vok="' + esc(n) + ':' + target.k + '">Appliquer</button> '
+          : "") +
+        '<button type="button" class="btn sm" data-vno="' + esc(n) + '">Rejeter</button></td></tr>';
+    });
+    h += "</tbody></table></div></div>";
+    return h;
+  }
+
+  function bindAdminVotes() {
+    on("vadd", "onclick", function () {
+      var el = document.getElementById("vpaste"), w = +(document.getElementById("vw") || {}).value || 1;
+      var code = el ? el.value.trim() : "";
+      if (!code) return;
+      var list, d;
+      try { d = tDec(code); list = d && d.v; } catch (e) { d = null; }
+      if (!list || !list.length) { toast("Ce bulletin est illisible."); return; }
+      /* un avis porte sur une liste de joueur ; un bulletin porte sur le classement officiel */
+      if (d.l) {
+        var l = tListOf(d.l);
+        if (!l) { toast("Cette liste n'existe pas sur ce navigateur."); return; }
+        l.votes = l.votes || {};
+        var m = 0;
+        list.forEach(function (item) {
+          var k = item.charAt(0) === "+" ? "ok" : "no", nm = item.slice(1);
+          if (!findAni(nm)) return;
+          l.votes[nm] = l.votes[nm] || { ok: 0, no: 0 };
+          l.votes[nm][k] += w; m++;
+        });
+        el.value = "";
+        persist(m + " avis ajouté" + (m > 1 ? "s" : "") + " à « " + (l.title || "la liste") + " »");
+        render(); return;
+      }
+      var T = tally(), n = 0;
+      list.forEach(function (item) {
+        var dir = item.charAt(0) === "+" ? "up" : "down", name = item.slice(1);
+        if (!findAni(name)) return;
+        T[name] = T[name] || { up: 0, down: 0 };
+        T[name][dir] += w; n++;
+      });
+      el.value = "";
+      persist(n + " vote" + (n > 1 ? "s" : "") + " ajouté" + (n > 1 ? "s" : "")); render();
+    });
+    on("voteon", "onchange", function () {
+      S.voteOn = this.checked;
+      persist(this.checked ? "Vote ouvert au public" : "Vote fermé"); render();
+    });
+    on("vreset", "onclick", function () {
+      if (!confirm("Remettre tous les compteurs de vote à zéro ?")) return;
+      S.tierVotes = {}; persist("Compteurs remis à zéro"); render();
+    });
+    document.querySelectorAll("[data-vok]").forEach(function (b) {
+      b.onclick = function () {
+        var p2 = b.dataset.vok.split(":"), n = p2[0], k = p2[1];
+        tFix()[n] = k;
+        delete tally()[n];
+        persist(n + " placé en " + k); render();
+      };
+    });
+    document.querySelectorAll("[data-vno]").forEach(function (b) {
+      b.onclick = function () {
+        delete tally()[b.dataset.vno];
+        persist("Proposition rejetée"); render();
+      };
     });
   }
 
@@ -2326,31 +3322,35 @@
   function renderRail() {
     var c = {};
     S.aniimos.forEach(function (a) { c[a.role] = (c[a.role] || 0) + 1; });
-    var groups = ["Fiches", "Gestion"];
+    var groups = [];
+    tabs().forEach(function (t) { if (!t.hidden && groups.indexOf(t.grp) < 0) groups.push(t.grp); });
     var h = '<div class="brand"><b>Aniimo France</b><span>Codex</span></div>' +
-      '<div class="railnote">' + S.aniimos.length + " Aniimo — mise à jour du " + esc(S.meta.updated) + ".</div>" +
       /* enveloppe neutre sur grand écran, ruban défilant sur mobile */
       '<div class="railnav">';
     groups.forEach(function (g) {
       /* le panneau est masqué aux visiteurs : on y accède par #admin */
       if (g === "Gestion" && adminLocked() && view.tab !== "admin") return;
       h += '<div class="navgroup">' + g + "</div>";
-      TABS.filter(function (t) { return t.grp === g; }).forEach(function (t) {
+      tabs().filter(function (t) { return t.grp === g && !t.hidden; }).forEach(function (t) {
         var dot = t.role ? '<span class="dot" style="background:' + (S.roles[t.role] || {}).color + '"></span>' : "";
-        var n = t.role ? '<span class="n">' + (c[t.role] || 0) + "</span>" :
-          (t.id === "tous" ? '<span class="n">' + S.aniimos.length + "</span>" : "");
+        var n = t.role ? '<span class="n">' + (c[t.role] || 0) + "</span>" : "";
         var on = view.tab === t.id;
         /* la catégorie ouverte pétille quand la souris passe dessus */
         var sp = "";
         for (var k = 1; k <= 5; k++) sp += '<span class="sp sp' + k + '">' + STAR + "</span>";
+        var letters = esc(t.label).split("").map(function (ch, li) {
+          return '<i style="--l:' + li + '">' + (ch === " " ? "&nbsp;" : ch) + "</i>";
+        }).join("");
         var lab = on
-          ? '<span class="tablab"><span class="shine">' + esc(t.label) + "</span>" + sp + "</span>"
+          ? '<span class="tablab"><span class="shine" data-txt="' + esc(t.label) + '">' +
+            letters + "</span>" + sp + "</span>"
           : "<span>" + esc(t.label) + "</span>";
         h += '<button class="tab" data-tab="' + t.id + '"' + (on ? ' aria-current="true"' : "") + ">" +
           dot + lab + n + "</button>";
       });
     });
-    h += "</div>" + discordCard();
+    h += "</div>" + discordCard() +
+      '<div class="railnote">Dernière mise à jour : ' + esc(S.meta.updated) + "</div>";
     return h;
   }
 
@@ -2361,6 +3361,21 @@
     return '<a class="dcbtn" href="' + DISCORD_URL + '" target="_blank" rel="noopener noreferrer">' +
       '<span class="dcico">' + DISCORD_SVG + "</span>" +
       '<span class="dctxt"><b>Rejoins Aniimo France</b><span>discord.gg — la communauté française</span></span></a>';
+  }
+
+  /* page en cours de rédaction */
+  function viewWip(t) {
+    return '<div class="head"><h1>' + esc(t.label) + "</h1></div>" +
+      '<div class="wipwrap"><div class="wipnote">' +
+      (S.wipImg ? '<img class="wipimg" src="' + S.wipImg + '" alt="">' : "") +
+      "<b>Rédaction en cours</b>" +
+      "<p>Cette rubrique arrive bientôt. Reviens la consulter dans quelques jours, " +
+      "ou suis l'avancement sur le Discord.</p></div></div>";
+  }
+
+  /* mention légale, au pied de chaque page */
+  function siteFooter() {
+    return '<footer class="sitefoot"><span>Tout droit réservés — Fan Website — Maxlore Credit</span></footer>';
   }
 
   /* bouton « remonter » : un Aniimo qui dépasse du haut de la pastille */
@@ -2388,7 +3403,7 @@
 
   /* on retient la page ouverte pour la retrouver après un rafraîchissement */
   var VIEW_KEY = "aniimo.view";
-  var VIEW_KEEP = ["tab", "tier", "abil", "teamMode", "teamMain", "adminSec", "tfold"];
+  var VIEW_KEEP = ["tab", "tier", "abil", "teamMode", "teamMain", "adminSec", "tfold", "teamVar"];
   function saveView() {
     try {
       var o = {};
@@ -2416,20 +3431,26 @@
     else if (t.kind === "jobs") body = viewJobs();
     else if (t.kind === "tier") body = viewTier();
     else if (t.kind === "team") body = viewTeam();
+    else if (t.kind === "wip") body = viewWip(t);
     else body = adminLocked() ? viewLock() : viewAdmin();
 
     document.getElementById("app").innerHTML = defs() +
-      '<div class="shell"><nav class="rail">' + renderRail() + '</nav><main class="main">' + banner() + body + "</main></div>" +
+      '<div class="shell"><nav class="rail">' + renderRail() + '</nav><main class="main">' +
+      banner() + body + siteFooter() + "</main></div>" +
       topBtn() +
       (view.detail ? viewDetail(view.detail) : "");
     wire();
     bindTop();
+    applyStyle();
     saveView();
     if (t.kind === "admin" && adminLocked()) return;
     if (t.kind === "admin" && view.adminSec === "aniimo" && view.pick) { fillForm(); bindSkillIcons(); }
     if (t.kind === "admin" && view.adminSec === "skico") bindSkillIcons();
     if (t.kind === "admin" && view.adminSec === "tiers") bindAdminTiers();
     if (t.kind === "admin" && view.adminSec === "abil") bindAdminAbil();
+    if (t.kind === "admin" && view.adminSec === "votes") bindAdminVotes();
+    if (t.kind === "admin" && view.adminSec === "pages") bindAdminPages();
+    if (t.kind === "admin" && view.adminSec === "style") bindAdminStyle();
   }
 
 
@@ -2449,6 +3470,18 @@
 
   function wireTier() {
     on("tfold", "onclick", function () { view.tfold = !view.tfold; render(); });
+    document.querySelectorAll("[data-vote]").forEach(function (b) {
+      b.onclick = function (e) { e.stopPropagation(); castVote(b.dataset.vn, b.dataset.vote); };
+    });
+    on("vcopy", "onclick", function () {
+      var c = voteBallot();
+      if (!c) return;
+      copyText(c);
+      toast("Bulletin copié — colle-le sur le Discord pour qu'il soit compté.");
+    });
+    on("vclear", "onclick", function () {
+      VOTES = {}; saveVotes(); render(); toast("Votes effacés");
+    });
     document.querySelectorAll("[data-lcopy]").forEach(function (b) {
       b.onclick = function (e) {
         e.stopPropagation();
@@ -2488,6 +3521,44 @@
       render(); window.scrollTo(0, 0);
     };
 
+    on("tsave", "onclick", function () {
+      var l = curList(); if (!l) return;
+      l.at = l.at || Date.now();
+      if (!adminLocked()) {
+        /* l'administrateur enregistre ET publie d'un coup : la liste (avec ses votes) */
+        /* part dans state.json au prochain « Publier » du panneau admin, visible pour tous. */
+        S.tierPublic = tPublic().filter(function (x) { return x.id !== l.id; });
+        tPublic().push(JSON.parse(JSON.stringify(l)));
+        persist("Liste enregistrée et publiée");
+        toast("« " + (l.title || "Ta liste") + " » est enregistrée et publiée : elle sera visible par tous après le prochain « Publier » du panneau admin.");
+        render();
+      } else {
+        persist("Liste enregistrée");
+        toast("« " + (l.title || "Ta liste") + " » est enregistrée dans ce navigateur. Pour la rendre visible à tous, copie son lien de partage et envoie-le à l'administrateur du site.");
+      }
+    });
+    on("tvote", "onclick", function () {
+      view.tvote = !view.tvote; view.tpick = null;
+      animate = true; render(); animate = false;
+    });
+    document.querySelectorAll("[data-lv]").forEach(function (b) {
+      b.onclick = function (e) {
+        e.stopPropagation();
+        var l = curList(); if (!l) return;
+        castListVote(l.id, b.dataset.lvn, b.dataset.lv);
+      };
+    });
+    on("lvcopy", "onclick", function () {
+      var l = curList(); if (!l) return;
+      var c = listBallot(l);
+      if (!c) return;
+      copyText(c);
+      toast("Avis copié — envoie-le à l'auteur de la liste ou sur le Discord.");
+    });
+    on("lvclear", "onclick", function () {
+      var l = curList(); if (!l) return;
+      delete listVotes()[l.id]; saveListVotes(); render(); toast("Avis effacé");
+    });
     on("tshare", "onclick", function () {
       var l = curList(); if (!l) return;
       var url = tShareUrl(l);
@@ -2570,7 +3641,9 @@
       b.onclick = function () {
         var t = b.dataset.tab;
         if (t === "puissance" && view.tab !== "puissance") { view.sort = "score"; view.dir = -1; }
-        if (t !== "puissance" && view.tab === "puissance") { view.sort = "atk"; view.dir = -1; }
+        /* la liste complète se lit dans l'ordre du jeu, par numéro */
+        if (t === "tous" && view.tab !== "tous") { view.sort = "no"; view.dir = 1; }
+        else if (t !== "puissance" && view.tab === "puissance") { view.sort = "atk"; view.dir = -1; }
         view.tab = t; animate = true; render(); animate = false; window.scrollTo(0, 0);
       };
     });
@@ -2611,6 +3684,23 @@
         var cur = bossOf(view.boss);
         if (cur && view.bossType && cur.type !== view.bossType) view.boss = "";
         render();
+      };
+    });
+    document.querySelectorAll("[data-variant]").forEach(function (b) {
+      b.onclick = function () {
+        view.teamVar = b.dataset.variant; animate = true; render(); animate = false;
+      };
+    });
+    /* un nom conseillé se pose dans la première case libre */
+    document.querySelectorAll("[data-sugg]").forEach(function (b) {
+      b.onclick = function () {
+        var n = b.dataset.sugg;
+        if (view.teamSlots.indexOf(n) >= 0) return;
+        var i = view.teamSlots.indexOf("");
+        if (i < 0) i = 3;
+        view.teamSlots[i] = n;
+        animate = true; render(); animate = false;
+        toast(n + " ajouté à l'équipe");
       };
     });
     document.querySelectorAll("[data-mode]").forEach(function (b) {
