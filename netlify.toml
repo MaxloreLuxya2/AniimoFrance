@@ -1,5 +1,5 @@
 [build]
-  command = "npm install"
+  command = "npm install && node stamp-date.js"
 
 [functions]
   directory = "netlify/functions"
