@@ -17,7 +17,7 @@ Site statique + données du projet. Généré le 22 août 2026.
 - **Tous les Aniimos** — les 94, triables sur chaque colonne, filtres élément / rôle / métier / type.
 - **Puissance des compétences** — classement par puissance des 3 meilleures compétences, avec le type de dégâts et les dégâts du meilleur coup.
 - **Métiers du Foyer** — les 4 métiers (Loisir, Artisanat, Parfumerie, Portage), l'échelle de rendement, les spécialités de production et le roster groupé.
-- **Team** — deux modes : automatique (tu choisis 1 Aniimo, les 3 autres sont calculés) ou manuel (tu composes les 4). Dans les deux cas : points forts, points faibles, rotation conseillée et couverture élémentaire.
+- **Team** — composition manuelle de 4 Aniimo ou équipes conseillées contre un élément, avec points forts, points faibles, rotation conseillée et couverture élémentaire.
 - **Tiers list** — un classement numéroté par rôle (DPS, Break, Support, Regen, Soin), calculé sur les critères propres à chaque rôle.
 - **Panneau admin** — édition des fiches, des icônes, des spécialités, des métiers et de l'équipe par défaut.
 

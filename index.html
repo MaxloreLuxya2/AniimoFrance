@@ -3789,16 +3789,10 @@ table.tight .ico{min-width:34px}
     T.members.forEach(function (a, mi) {
       var isMain = a.name === T.main.name;
       var why = T.notes[a.name];
-      var isPinned = pins().indexOf(a.name) >= 0;
       h += '<div class="card teamcard fxi' + (isMain ? " main" : "") + '" style="--i:' + mi + '">' +
         '<div class="icocell">' + aniLink(a, icon(a, 44)) + "<div><b>" + aniLink(a, nameHtml(a)) + "</b>" +
-        '<div class="chips">' + a.elems.map(elemChip).join(" ") + " " + roleChip(a.role) + "</div></div>" +
-        (view.teamMode === "auto" && !isMain
-          ? '<button class="pinbtn' + (isPinned ? " on" : "") + '" data-pin="' + esc(a.name) +
-            '" title="' + (isPinned ? "Ne plus garder cet Aniimo" : "Garder cet Aniimo dans l\'équipe") +
-            '" aria-pressed="' + isPinned + '">' + (isPinned ? "★" : "☆") + "</button>"
-          : "") + "</div>" +
-        (isMain ? '<div class="tag">Aniimo principal</div>' : (isPinned ? '<div class="tag pin">Gardé</div>' : "")) +
+        '<div class="chips">' + a.elems.map(elemChip).join(" ") + " " + roleChip(a.role) + "</div></div></div>" +
+        (isMain ? '<div class="tag">Aniimo principal</div>' : "") +
         '<dl class="kv mini"><dt>ATK</dt><dd class="mono">' + a.atk + '</dd><dt>BREAK</dt><dd class="mono">' + a.brk +
         '</dd><dt>REGEN</dt><dd class="mono">' + a.regen + "</dd></dl>" +
         '<p class="tr">' + esc(a.traitFr || a.trait) + "</p>" +
