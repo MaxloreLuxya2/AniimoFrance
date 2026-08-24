@@ -309,7 +309,7 @@
   }
   var view = {
     tab: "tous", q: "", elem: "", role: "", job: "", type: "", sort: "no", dir: 1, pick: null,
-    teamMode: "auto", teamMain: "Fulmintis", teamSlots: ["", "", "", ""], adminSec: "aniimo",
+    teamMode: "manuel", teamMain: "Fulmintis", teamSlots: ["", "", "", ""], adminSec: "aniimo",
     tcreate: false, tpick: null, tfold: false, teamVar: "dmg", tvote: false,
     openPicker: null, pickerQ: "", boss: "", bossType: "", pins: null, abil: "homeland", tier: "DPS", detail: null
   };
@@ -2106,8 +2106,7 @@
     var h = '<div class="head"><h1>Team</h1></div>' +
       "";
 
-    h += '<div class="modes"><button class="btn' + (view.teamMode === "auto" ? " primary" : "") + '" data-mode="auto">Team automatique</button>' +
-      '<button class="btn' + (view.teamMode === "manuel" ? " primary" : "") + '" data-mode="manuel">Composer moi-même</button>' +
+    h += '<div class="modes"><button class="btn' + (view.teamMode === "manuel" ? " primary" : "") + '" data-mode="manuel">Composer moi-même</button>' +
       '<button class="btn' + (view.teamMode === "boss" ? " primary" : "") + '" data-mode="boss">Contre un Élément</button></div>';
 
     if (view.teamMode === "auto") {
@@ -3464,6 +3463,7 @@
       var o = JSON.parse(localStorage.getItem(VIEW_KEY) || "null");
       if (!o) return;
       VIEW_KEEP.forEach(function (k) { if (o[k] !== undefined && o[k] !== null) view[k] = o[k]; });
+      if (view.teamMode === "auto") view.teamMode = "manuel";
       /* une liste perso supprimée entre-temps ne doit pas bloquer la page */
       if (typeof view.tier === "string" && view.tier.indexOf("L:") === 0 &&
           !tListOf(view.tier.slice(2))) view.tier = "ALL";
