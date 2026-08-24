@@ -1003,7 +1003,6 @@
     var b = k ? bandByKey(k) : null;
     return b || (list ? null : tierOf(r.s, best));
   }
-  function whyOf(a) { return tWhy()[a.name] || kitLabel(a); }
 
   function viewTier() {
     var sel = view.tier, list = null;
@@ -1211,7 +1210,7 @@
     return '<div class="tcard' + (picked ? " picked" : "") + '"' +
       (edit ? ' draggable="true" data-drag="' + esc(a.name) + '"' : "") +
       ' title="' + esc(a.name + " — " + (KLAB[rr] || "Score") + " " + kv + " · score " + r.s +
-        " (stats " + r.stat + ", kit " + r.kit + ")\n" + whyOf(a)) + '">' +
+        " (stats " + r.stat + ", kit " + r.kit + ")") + '">' +
       '<div class="tcimg">' + (edit ? icon(a, 58) : aniLink(a, icon(a, 58))) +
       '<span class="tcpos">' + (ranked.indexOf(r) + 1) + "</span>" +
       (edit ? '<button type="button" class="tcinfo" data-ani="' + esc(a.name) +
@@ -1219,7 +1218,6 @@
       '<div class="tcname">' + (edit ? esc(a.name) : aniLink(a, esc(a.name))) + "</div>" +
       '<div class="tcel">' + a.elems.map(elemChip).join("") +
       (role === "ALL" ? roleChip(a.role) : "") + "</div>" +
-      '<div class="tcwhy">' + esc(whyOf(a)) + "</div>" +
       (list ? listVoteBar(list, a) : voteBar(a)) + "</div>";
   }
 
@@ -2159,7 +2157,6 @@
     h += '<div class="grid cards4' + animClass() + '" style="margin-top:14px">';
     T.members.forEach(function (a, mi) {
       var isMain = a.name === T.main.name;
-      var why = T.notes[a.name];
       var isPinned = pins().indexOf(a.name) >= 0;
       h += '<div class="card teamcard fxi' + (isMain ? " main" : "") + '" style="--i:' + mi + '">' +
         '<div class="icocell">' + aniLink(a, icon(a, 44)) + "<div><b>" + aniLink(a, esc(a.name)) + "</b>" +
@@ -2173,7 +2170,6 @@
         '<dl class="kv mini"><dt>ATK</dt><dd class="mono">' + a.atk + '</dd><dt>BREAK</dt><dd class="mono">' + a.brk +
         '</dd><dt>REGEN</dt><dd class="mono">' + a.regen + '</dd><dt>Meilleur coup</dt><dd class="mono">' + hit(a) + "</dd></dl>" +
         '<p class="tr">' + esc(a.traitFr || a.trait) + "</p>" +
-        (why && why.length ? '<p class="why"><span class="lbl">Pourquoi lui</span>' + esc(why.join(" · ")) + "</p>" : "") +
         "</div>";
     });
     h += "</div>";
