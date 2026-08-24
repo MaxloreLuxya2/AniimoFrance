@@ -117,6 +117,40 @@ td.num{text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-num
   font-weight:600; color:var(--chip-ink); white-space:nowrap}
 .chip.sm{font-size:10.5px; padding:1px 7px}
 .chip.ghost{background:none; border:1px solid var(--line-2); color:var(--muted); font-weight:500}
+.chip.gold{
+  background:linear-gradient(110deg,#B8842A 0%,#B8842A 38%,#FFF0C4 50%,#B8842A 62%,#B8842A 100%);
+  background-size:280% 100%; color:#2A1B04; font-weight:700; animation:legendshift 2.6s linear infinite}
+.chip.silver{
+  background:linear-gradient(110deg,#8B95A3 0%,#8B95A3 38%,#F8FAFD 50%,#8B95A3 62%,#8B95A3 100%);
+  background-size:280% 100%; color:#1B2028; font-weight:700; animation:legendshift 2.6s linear infinite}
+@media (prefers-reduced-motion: reduce){.chip.gold,.chip.silver{animation:none}}
+.chip.legendary{
+  background:linear-gradient(90deg,#FF5A5A,#FFB03A,#FFE84D,#5FE07A,#4DB8FF,#9B6DFF,#FF5AC8,#FF5A5A);
+  background-size:250% 100%; color:#1a1408; font-weight:700; animation:legendshift 5s linear infinite}
+@keyframes legendshift{0%{background-position:0% 0}100%{background-position:250% 0}}
+@media (prefers-reduced-motion: reduce){.chip.legendary{animation:none}}
+.legendname{
+  position:relative; display:inline-block; padding:0 3px;
+  background:linear-gradient(90deg,#FF5A5A,#FFB03A,#FFE84D,#5FE07A,#4DB8FF,#9B6DFF,#FF5AC8,#FF5A5A);
+  background-size:250% 100%; -webkit-background-clip:text; background-clip:text; color:transparent;
+  animation:legendshift 5s linear infinite}
+/* les étincelles sont posées SUR le nom, comme sur les entêtes de compétences */
+.legendname .sp{position:absolute; opacity:0; pointer-events:none; color:#FFE9A8;
+  filter:drop-shadow(0 0 4px #FFD98A) drop-shadow(0 0 7px #FFB03A)}
+.legendname .sp svg{width:100%; height:100%; display:block; fill:currentColor}
+.legendname .sp1{left:-4%; top:-22%; width:8px; height:8px}
+.legendname .sp2{left:30%; top:48%;  width:6px; height:6px}
+.legendname .sp3{left:56%; top:-26%; width:9px; height:9px}
+.legendname .sp4{left:80%; top:46%;  width:6px; height:6px}
+.legendname .sp5{left:98%; top:-14%; width:7px; height:7px}
+@media (prefers-reduced-motion:no-preference){
+  .legendname .sp1{animation:twinkle 2.1s ease-in-out infinite .1s}
+  .legendname .sp2{animation:twinkle 2.1s ease-in-out infinite .35s}
+  .legendname .sp3{animation:twinkle 2.1s ease-in-out infinite .55s}
+  .legendname .sp4{animation:twinkle 2.1s ease-in-out infinite .75s}
+  .legendname .sp5{animation:twinkle 2.1s ease-in-out infinite .95s}
+}
+@media (prefers-reduced-motion: reduce){.legendname{animation:none; background:none; -webkit-text-fill-color:var(--ink); color:var(--ink)} .legendname .sp{display:none}}
 .jobchip{display:inline-flex; align-items:center; gap:4px}
 
 .bar{position:relative; height:6px; border-radius:3px; background:var(--bar-bg); min-width:54px}
@@ -908,6 +942,20 @@ td .anilink:hover .ico, .tcimg .anilink:hover .ico, .powhead .anilink:hover .ico
 /* ---------- Team : équipes conseillées par élément ---------- */
 .etsec{display:grid; justify-items:center; gap:9px; margin-top:20px}
 .etlead{margin:0; max-width:76ch; text-align:center; font-size:12.5px; color:var(--muted); line-height:1.55}
+/* intro à gauche, aide-mémoire élémentaire à droite */
+.ettop{width:100%; max-width:900px; display:flex; align-items:flex-start; justify-content:center; gap:22px; flex-wrap:wrap}
+.ettop .etlead{flex:1 1 260px; text-align:left; max-width:44ch}
+.etchart{flex:0 1 320px; min-width:260px; border:1px solid var(--gold-line); border-radius:13px;
+  background:var(--surface-2); padding:10px 13px 11px}
+.etchart h4{margin:0 0 7px; font-size:10.5px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--gold-line); font-weight:700}
+.etcrow{display:flex; flex-wrap:wrap; align-items:center; gap:4px; padding:3px 0;
+  font-size:10px}
+.etcrow + .etcrow{border-top:1px solid var(--line)}
+.etcrow .chip.el{font-size:9.5px; padding:1px 6px}
+.etcarr{color:var(--muted); font-size:11px; margin:0 1px}
+.etcarr.etcweak{margin-left:5px}
+@media (max-width:900px){ .ettop .etlead{text-align:center; max-width:76ch} }
 /* le plateau : un grand rectangle qui tient toutes les équipes */
 .etboard{width:100%; border:1px solid var(--line); border-radius:16px; background:var(--surface-2);
   box-shadow:var(--shadow); padding:14px; margin-top:6px}
