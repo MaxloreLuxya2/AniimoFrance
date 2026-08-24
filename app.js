@@ -175,6 +175,13 @@
     Autre: '<circle cx="12" cy="12" r="3.4"/><path d="M12 3v3.2M12 17.8V21M3 12h3.2M17.8 12H21M5.6 5.6l2.3 2.3M16.1 16.1l2.3 2.3M18.4 5.6l-2.3 2.3M7.9 16.1l-2.3 2.3"/>'
   };
   var STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0c.7 6.4 4.9 10.6 12 12-7.1 1.4-11.3 5.6-12 12-.7-6.4-4.9-10.6-12-12C7.1 10.6 11.3 6.4 12 0Z"/></svg>';
+  /* nom d'un Aniimo, décoré (dégradé arc-en-ciel + étincelles) quand il est Légendaire */
+  function nameHtml(a) {
+    if (!a || !a.legendary) return esc(a && a.name);
+    var sp = "";
+    for (var i = 1; i <= 5; i++) sp += '<span class="sp sp' + i + '">' + STAR + "</span>";
+    return '<span class="legendname">' + esc(a.name) + sp + "</span>";
+  }
   function skKey(aniName, skName) { return aniName + "|" + skName; }
   function skImg(uri, alt) {
     return '<span class="skico art"><img src="' + uri + '" alt="' + esc(alt || "") + '" loading="lazy"></span>';
@@ -309,20 +316,21 @@
   }
   var view = {
     tab: "tous", q: "", elem: "", role: "", job: "", type: "", sort: "no", dir: 1, pick: null,
-    teamMode: "auto", teamMain: "Fulmintis", teamSlots: ["", "", "", ""], adminSec: "aniimo",
-    tcreate: false, tpick: null, tfold: false, teamVar: "dmg", tvote: false,
+    teamMode: "manuel", teamMain: "Fulmintis", teamSlots: ["", "", "", ""], adminSec: "aniimo",
+    tcreate: false, tpick: null, tfold: false, tvote: false,
     openPicker: null, pickerQ: "", boss: "", bossType: "", pins: null, abil: "homeland", tier: "DPS", detail: null
   };
 
   var TABS = [
     { id: "tous", label: "Tous les Aniimos", kind: "roster", grp: "Fiches" },
     { id: "puissance", label: "Les compétences", kind: "power", grp: "Fiches" },
+    { id: "tiers", label: "Tiers List", kind: "tier", grp: "Fiches" },
+    { id: "team", label: "Team", kind: "team", grp: "Fiches" },
     { id: "equipements", label: "Equipements", kind: "wip", grp: "Fiches" },
     { id: "abilites", label: "Abilités", kind: "abil", grp: "Fiches" },
+    { id: "informations", label: "Informations", kind: "wip", grp: "Fiches" },
     { id: "metiers", label: "Métiers Aniimo", kind: "jobs", grp: "Fiches" },
     { id: "homeland", label: "HomeLand", kind: "wip", grp: "Fiches" },
-    { id: "team", label: "Team", kind: "team", grp: "Fiches" },
-    { id: "tiers", label: "Tiers List", kind: "tier", grp: "Fiches" },
     { id: "admin", label: "Panneau admin", kind: "admin", grp: "Gestion" }
   ];
   /* les catégories peuvent être renommées ou réordonnées dans l'admin */
@@ -409,7 +417,7 @@
     list.forEach(function (a, i) {
       h += '<tr class="fxi" style="--i:' + Math.min(i, 26) + '">' +
         '<td class="rank">' + (i + 1) + "</td><td>" + aniLink(a, icon(a)) + '</td><td class="no">' + esc(a.no) + "</td>" +
-        '<td class="nm">' + aniLink(a, esc(a.name)) + "</td><td>" + a.elems.map(elemChip).join(" ") + "</td>" +
+        '<td class="nm">' + aniLink(a, nameHtml(a)) + "</td><td>" + a.elems.map(elemChip).join(" ") + "</td>" +
         "<td>" + roleChip(a.role) + "</td><td>" + jobChips(a) + "</td><td>" + typeChip(a) + "</td>" +
         '<td class="num">' + bar(a.atk, maxAtk, (S.elements[a.elems[0]] || "#888")) + "</td>" +
         '<td class="num">' + a.hp + '</td><td class="num">' + a.pdef + '</td><td class="num">' + a.mdef +
@@ -422,15 +430,15 @@
 
   /* ---------------- fiche : puissance ---------------- */
   var POW_SORTS = [["score", "Score des 3 meilleures"], ["best", "Compétence la plus puissante"],
-    ["dmg", "Dégâts du meilleur coup"], ["atk", "ATK"], ["name", "Nom"]];
+    ["name", "Nom"]];
 
   function viewPower() {
-    if (["score", "best", "dmg", "atk", "name"].indexOf(view.sort) < 0) { view.sort = "score"; view.dir = -1; }
+    if (["score", "best", "name"].indexOf(view.sort) < 0) { view.sort = "score"; view.dir = -1; }
     var list = rows(null);
     var maxScore = Math.max.apply(null, S.aniimos.map(score));
     var h = '<div class="head"><h1>Les compétences</h1><span class="count">' + list.length + " / " +
       S.aniimos.length + "</span>" + tipNote(TIP_CLICK, "right") + "</div>" +
-      '<p class="sub">Score = somme des 3 compétences les plus puissantes (valeur « Might » du jeu). « Dégâts du meilleur coup » = ATK × puissance de la meilleure compétence : ce que l\'Aniimo place réellement en un coup.</p>' +
+      '<p class="sub">Score = somme des 3 compétences les plus puissantes (valeur « Might » du jeu).</p>' +
       toolbar({}) +
       '<div class="toolbar" style="margin-top:-6px"><div class="field"><label for="fs">Trier par</label>' +
       '<select id="fs">' + POW_SORTS.map(function (s) {
@@ -443,12 +451,11 @@
       if (!sk.length) sk = (a.skills || []).slice(0, 1);
       h += '<article class="powcard fxi" style="--i:' + Math.min(i, 24) + '">' +
         '<div class="powhead"><span class="pos">' + (i + 1) + "</span>" + aniLink(a, icon(a, 44)) +
-        '<div class="pi"><b>' + aniLink(a, esc(a.name)) + '</b><div class="chips">' + a.elems.map(elemChip).join(" ") +
-        roleChip(a.role) + typeChip(a) + "</div></div></div>" +
+        '<div class="pi"><b>' + aniLink(a, nameHtml(a)) + '</b><div class="chips">' + a.elems.map(elemChip).join(" ") +
+        roleChip(a.role) + typeChip(a) + (a.legendary ? '<span class="chip legendary">Légendaire</span>' : "") + "</div></div></div>" +
         '<div class="powstats">' +
         '<div><span class="lbl">Score</span><b>' + score(a) + "</b></div>" +
-        '<div><span class="lbl">ATK</span><b>' + a.atk + "</b></div>" +
-        '<div><span class="lbl">Meilleur coup</span><b>' + hit(a) + "</b></div></div>" +
+        '<div><span class="lbl">ATK</span><b>' + a.atk + "</b></div></div>" +
         '<span class="bar big"><i style="width:' + Math.max(3, Math.round(score(a) / maxScore * 100)) +
         '%;background:var(--accent)"></i></span>' +
         skBlocks(a, sk) +
@@ -483,9 +490,12 @@
         return { n: s.n, t: "", m: s.m ? String(s.m) : "", ep: "", d: "" };
       });
     }
+    var bs = bestSkill(a);
     list.forEach(function (s) {
       h += '<div class="skrow"><div class="skmain">' + skIcon(s.t, skKey(a.name, s.n), s.n) +
         '<div class="skname"><b>' + esc(s.nf || s.n) + "</b>" +
+        (bs && s.n === bs.n ? '<span class="chip sm silver">Ultime</span>' : "") +
+        (a.sCore && s.n === a.sCore ? '<span class="chip sm gold">S Core</span>' : "") +
         (s.e && S.elements && S.elements[s.e] ? elemChip(s.e) : "") +
         (s.t ? '<span class="chip sm" style="background:' + (TYPE_COLOR[s.t] || "#888") + '">' + esc(s.t) + "</span>" : "") +
         (s.brk ? '<span class="chip sm" style="background:' + (S.roles && S.roles.BREAK ? S.roles.BREAK.color : "#3F6FB5") + '">BREAK</span>' : "") +
@@ -585,11 +595,10 @@
   function viewDetail(name) {
     var a = findAni(name);
     if (!a) return "";
-    var maxes = { hp: 0, atk: 0, pdef: 0, mdef: 0, brk: 0, regen: 0, total: 0, hit: 0 };
+    var maxes = { hp: 0, atk: 0, pdef: 0, mdef: 0, brk: 0, regen: 0, total: 0 };
     S.aniimos.forEach(function (x) {
       Object.keys(maxes).forEach(function (k) { if (x[k] > maxes[k]) maxes[k] = x[k]; });
       if (total(x) > maxes.total) maxes.total = total(x);
-      if (hit(x) > maxes.hit) maxes.hit = hit(x);
     });
     var rc = (S.roles[a.role] || {}).color || "#888";
 
@@ -604,9 +613,9 @@
       '<div class="dlg" role="dialog" aria-modal="true" aria-label="' +
       esc(a.name) + '"><button class="dlgx" data-close="1" aria-label="Fermer">✕</button>' +
       '<div class="dlghead">' + icon(a, 92) +
-      '<div><div class="no">N° ' + esc(a.no) + "</div><h2>" + esc(a.name) + "</h2>" +
+      '<div><div class="no">N° ' + esc(a.no) + "</div><h2>" + nameHtml(a) + "</h2>" +
       '<div class="chips">' + a.elems.map(elemChip).join(" ") + roleChip(a.role) + typeChip(a) +
-      jobChips(a) + "</div>" +
+      jobChips(a) + (a.legendary ? '<span class="chip legendary">Légendaire</span>' : "") + "</div>" +
       '<div class="devo"' + (isFinal(a) ? ' data-fin="1"' : "") + ">" + esc(evoTxt) + "</div>" +
       (band ? '<div class="dtier"><span class="tchip" style="background:' + band.color + '">' + band.k +
         '</span> ' + pos + "<sup>" + (pos === 1 ? "er" : "e") + '</sup> sur ' + ranked.length +
@@ -625,7 +634,6 @@
       statRow("REGEN", a.regen, maxes.regen, "#8E5FBF") +
       '<div class="dsum">' +
       statRow("Total", total(a), maxes.total, "#C9A227") +
-      statRow("Meilleur coup", hit(a), maxes.hit, "#D2453F") +
       "</div></div></section>";
 
     /* arbre d'évolution */
@@ -673,8 +681,8 @@
 
     if (!found.length) {
       h += '<p class="dsnone">' + esc(a.name) +
-        " ne figure dans aucune des compositions conseillées. Voici celle qu'il affrontera " +
-        "s'il croise un boss de son propre élément.</p>";
+        " ne fait partie d'aucune des compositions conseillées contre un boss. À titre de comparaison, " +
+        "voici l'équipe conseillée contre un boss " + (own ? esc(own) + ", son propre élément" : "") + ".</p>";
       if (own) h += teamBlock(own, elemTeamOf(own), -1, false, a.name);
     } else {
       found.forEach(function (f) { h += teamBlock(f.e, f.t, f.slot, f.sub, a.name); });
@@ -697,7 +705,7 @@
         var x = findAni(n);
         if (!x) return '<div class="dstm empty"></div>';
         return '<div class="dstm' + (n === me ? " is-me" : "") + '">' +
-          aniLink(x, icon(x, 34)) + "<b>" + aniLink(x, esc(x.name)) + "</b>" +
+          aniLink(x, icon(x, 34)) + "<b>" + aniLink(x, nameHtml(x)) + "</b>" +
           '<span class="dstr" style="background:' + ((S.roles[x.role] || {}).color || "#888") + '">' +
           esc(x.role) + "</span></div>";
       }).join("") + "</div>";
@@ -763,8 +771,7 @@
         "<div><h3>" + esc(j.name) + "</h3>" +
         (j.excl ? '<div class="lbl"><span class="excl">' + esc(j.excl) + "</span></div>" : "") +
         "<p>" + esc(j.desc) + "</p>" +
-        '<dl class="kv"><dt>Rang</dt><dd>' + j.rank + " / " + S.jobs.length + "</dd>" +
-        "<dt>Niveau max</dt><dd><b>Lv." + j.max + "</b></dd>" +
+        '<dl class="kv"><dt>Niveau max</dt><dd><b>Lv.' + j.max + "</b></dd>" +
         "<dt>Rendement</dt><dd>" + j.rate + "/min" +
         (j.rate > 60 ? ' <span class="rank">+' + Math.round((j.rate / 60 - 1) * 100) + "%</span>" : "") + "</dd>" +
         "<dt>Aniimo</dt><dd>" + counts[j.key] + "</dd></dl></div></div>";
@@ -807,7 +814,7 @@
     });
     list.forEach(function (a, li) {
       h += '<tr class="fxi" style="--i:' + Math.min(li, 26) + '"><td>' + aniLink(a, icon(a)) +
-        '</td><td class="nm">' + aniLink(a, esc(a.name)) + "</td><td>" +
+        '</td><td class="nm">' + aniLink(a, nameHtml(a)) + "</td><td>" +
         a.elems.map(elemChip).join(" ") + "</td><td>" + roleChip(a.role) + "</td><td>" + jobChips(a) +
         '</td><td class="num">' + (a.jobLevel ? "Lv." + a.jobLevel : "—") + "</td></tr>";
     });
@@ -1216,10 +1223,9 @@
       '<span class="tcpos">' + (ranked.indexOf(r) + 1) + "</span>" +
       (edit ? '<button type="button" class="tcinfo" data-ani="' + esc(a.name) +
         '" title="Voir la fiche">i</button>' : "") + "</div>" +
-      '<div class="tcname">' + (edit ? esc(a.name) : aniLink(a, esc(a.name))) + "</div>" +
+      '<div class="tcname">' + (edit ? nameHtml(a) : aniLink(a, nameHtml(a))) + "</div>" +
       '<div class="tcel">' + a.elems.map(elemChip).join("") +
       (role === "ALL" ? roleChip(a.role) : "") + "</div>" +
-      '<div class="tcwhy">' + esc(whyOf(a)) + "</div>" +
       (list ? listVoteBar(list, a) : voteBar(a)) + "</div>";
   }
 
@@ -1542,52 +1548,6 @@
       (n ? '<button class="btn" id="vclear">Effacer mes votes</button>' : "") + "</div></div>";
   }
 
-  /* ============ Team automatique : plusieurs propositions ============ */
-  var TEAM_VARIANTS = [
-    { key: "dmg",  name: "Dégâts maximum",
-      desc: "Le plus gros pic de dégâts possible autour de ton Aniimo.",
-      tune: function (need) { need.w.dmgUp += 18; need.w.crit += 14; need.w.heal = Math.max(0, need.w.heal - 8); } },
-    { key: "safe", name: "Confort et survie",
-      desc: "Un peu moins de dégâts, beaucoup plus de marge d'erreur.",
-      tune: function (need) { need.w.heal += 26; need.w.cleanse += 14; need.w.shield += 10; } },
-    { key: "ep",   name: "Énergie continue",
-      desc: "Pour enchaîner les compétences sans jamais tomber en panne d'EP.",
-      tune: function (need) { need.w.ep += 26; need.w.epMax += 18; need.w.regen += 10; } }
-  ];
-
-  function teamVariants(mainName) {
-    var main = findAni(mainName);
-    if (!main) return [];
-    return TEAM_VARIANTS.map(function (v) {
-      var need = needsOf(main);
-      need.w = need.w || {};
-      ["dmgUp", "crit", "heal", "cleanse", "shield", "ep", "epMax", "regen"].forEach(function (k) {
-        if (typeof need.w[k] !== "number") need.w[k] = 0;
-      });
-      v.tune(need);
-      var t = autoTeam(mainName, { need: need, pins: pins() });
-      return t ? { v: v, t: t } : null;
-    }).filter(Boolean);
-  }
-
-  function variantPanel(mainName, cur) {
-    var list = teamVariants(mainName);
-    if (list.length < 2) return "";
-    var base = null;
-    list.forEach(function (x) { if (x.v.key === cur) base = x; });
-    return '<section class="varsec">' + skHead("Trois façons de la jouer") +
-      '<p class="etlead">La même pièce maîtresse, trois entourages. Choisis celui qui colle à ta manière de jouer : l\'analyse en dessous suit.</p>' +
-      '<div class="vargrid">' + list.map(function (x) {
-        var on = x.v.key === cur;
-        var names = x.t.members.map(function (a) { return a.name; });
-        return '<button type="button" class="varcard' + (on ? " on" : "") + '" data-variant="' + x.v.key + '">' +
-          '<div class="vhead"><b>' + esc(x.v.name) + "</b>" + (on ? '<span class="von">affichée</span>' : "") + "</div>" +
-          "<p>" + esc(x.v.desc) + "</p>" +
-          '<div class="vteam">' + x.t.members.map(function (a) {
-            return '<span class="vm">' + icon(a, 30) + "<i>" + esc(a.name) + "</i></span>";
-          }).join("") + "</div></button>";
-      }).join("") + "</div></section>";
-  }
 
   /* ============ conseiller d'équipe ============
      Utilisé par « Composer moi-même » : lit la composition en cours et
@@ -1619,7 +1579,7 @@
   function nameLinks(list) {
     return list.map(function (a) {
       return '<button type="button" class="sugg" data-sugg="' + esc(a.name) + '">' +
-        icon(a, 20) + esc(a.name) + '<span class="sr">' + esc(a.role) + "</span></button>";
+        icon(a, 20) + nameHtml(a) + '<span class="sr">' + esc(a.role) + "</span></button>";
     }).join("");
   }
 
@@ -1816,12 +1776,6 @@
       var tb = view.boss ? bossTeam(view.boss) : null;
       return tb ? { members: tb.members, notes: tb.notes, main: tb.main, boss: tb.boss, bt: tb.bt } : null;
     }
-    if (view.teamMode === "auto") {
-      var t = null;
-      teamVariants(view.teamMain).forEach(function (x) { if (x.v.key === view.teamVar) t = x.t; });
-      if (!t) t = autoTeam(view.teamMain, { pins: pins() });
-      return t ? { members: t.members, notes: t.notes, main: t.main, pinned: t.pinned } : null;
-    }
     var ms = view.teamSlots.map(findAni).filter(Boolean);
     if (!ms.length) return null;
     return { members: ms, notes: {}, main: ms[0] };
@@ -1840,7 +1794,7 @@
     }
     var h = '<div class="apick' + (open ? " open" : "") + '" data-pid="' + id + '">' +
       '<button type="button" class="apickbtn" data-popen="' + id + '" aria-expanded="' + open + '">' +
-      (cur ? icon(cur, 26) + "<b>" + esc(cur.name) + '</b><span class="rank">' + esc(cur.role) + " · " +
+      (cur ? icon(cur, 26) + "<b>" + nameHtml(cur) + '</b><span class="rank">' + esc(cur.role) + " · " +
         esc(cur.elems.join("/")) + "</span>" : '<span class="ph">' + esc(ph || "— choisir un Aniimo —") + "</span>") +
       '<span class="caret">▾</span></button>';
     if (open) {
@@ -1850,7 +1804,7 @@
       h += '<div class="apicklist">';
       list.forEach(function (a) {
         h += '<button type="button" class="apickitem' + (a.name === val ? " on" : "") + '" data-pchoose="' + id +
-          '" data-pval="' + esc(a.name) + '">' + icon(a, 24) + "<b>" + esc(a.name) + "</b>" +
+          '" data-pval="' + esc(a.name) + '">' + icon(a, 24) + "<b>" + nameHtml(a) + "</b>" +
           '<span class="chips">' + a.elems.map(elemChip).join("") + roleChip(a.role) + "</span></button>";
       });
       if (!list.length) h += '<div class="apickempty">Aucun Aniimo ne correspond.</div>';
@@ -2044,10 +1998,24 @@
     return ELEM_TEAM_ORDER.filter(function (e) { return ELEM_ORDER.indexOf(e) >= 0; })
       .concat(ELEM_ORDER.filter(function (e) { return ELEM_TEAM_ORDER.indexOf(e) < 0; }));
   }
+  /* petit encadré à droite : qui bat qui, en un coup d'œil (chips, pas de texte) */
+  function elemChartBox() {
+    return '<aside class="etchart"><h4>Qui bat qui</h4>' +
+      elemTeamOrder().map(function (e) {
+        var ch = chartOf(e);
+        return '<div class="etcrow">' + elemChip(e) +
+          '<span class="etcarr" aria-hidden="true">→</span>' + (ch.strong.map(elemChip).join("") || "—") +
+          '<span class="etcarr etcweak" aria-hidden="true">←</span>' + (ch.weak.map(elemChip).join("") || "—") +
+          "</div>";
+      }).join("") + "</aside>";
+  }
+
   function elemTeamsPanel() {
     var h = '<section class="etsec">' + skHead("Les meilleures équipes par élément") +
+      '<div class="ettop">' +
       '<p class="etlead">Une équipe bâtie autour de chaque élément : un DPS pour porter les dégâts, ' +
       "un BREAK pour ouvrir la garde, un soutien et un relais d'énergie. Clique une vignette pour ouvrir sa fiche.</p>" +
+      elemChartBox() + "</div>" +
       goldNote("À savoir",
         "Les teams proposées ont été faites de manière à optimiser au mieux vos combats. " +
         "Chaque élément a sa Team 1 et sa Team 2, à jouer selon les Aniimo dont tu disposes.") +
@@ -2077,7 +2045,6 @@
       }
       h += '<div class="etwhy"><span>Frappé fort par</span>' +
         (ch.weak.map(elemChip).join(" ") || "—") + "</div>";
-      if (t.lead) h += '<p class="etlead2">' + esc(t.lead) + "</p>";
       if (t.points && t.points.length) {
         h += '<ul class="etpts">' + t.points.map(function (pt) {
           var a2 = findAni(pt.t);
@@ -2106,15 +2073,10 @@
     var h = '<div class="head"><h1>Team</h1></div>' +
       "";
 
-    h += '<div class="modes"><button class="btn' + (view.teamMode === "auto" ? " primary" : "") + '" data-mode="auto">Team automatique</button>' +
-      '<button class="btn' + (view.teamMode === "manuel" ? " primary" : "") + '" data-mode="manuel">Composer moi-même</button>' +
+    h += '<div class="modes"><button class="btn' + (view.teamMode === "manuel" ? " primary" : "") + '" data-mode="manuel">Composer moi-même</button>' +
       '<button class="btn' + (view.teamMode === "boss" ? " primary" : "") + '" data-mode="boss">Contre un Élément</button></div>';
 
-    if (view.teamMode === "auto") {
-      h += '<div class="card pickcard"><div class="f"><label>Aniimo principal</label>' + aniPicker("tmain", view.teamMain) + "</div>" +
-        '<p class="rank">Les 3 autres sont choisis automatiquement : rôles complémentaires, bonus élémentaires qui profitent à ton principal, et couverture de ses faiblesses.</p></div>' +
-        variantPanel(view.teamMain, view.teamVar);
-    } else if (view.teamMode === "boss") {
+    if (view.teamMode === "boss") {
       h += elemTeamsPanel();
       return h;
     } else {
@@ -2145,11 +2107,11 @@
         return elemsOf(a).some(function (e) { return chartOf(e).resist.indexOf(T.boss.elem) >= 0; });
       });
       if (hitters.length) A.strong.unshift("Contre ce boss " + esc(T.boss.elem) + " : <b>" +
-        hitters.map(function (a) { return esc(a.name); }).join(", ") + "</b> frappe" +
+        hitters.map(nameHtml).join(", ") + "</b> frappe" +
         (hitters.length > 1 ? "nt" : "") + " en ×1,6.");
-      if (resist.length) A.strong.push("<b>" + resist.map(function (a) { return esc(a.name); }).join(", ") +
+      if (resist.length) A.strong.push("<b>" + resist.map(nameHtml).join(", ") +
         "</b> résiste" + (resist.length > 1 ? "nt" : "") + " à ses attaques " + esc(T.boss.elem) + ".");
-      if (fragile.length) A.weak.unshift("<b>" + fragile.map(function (a) { return esc(a.name); }).join(", ") +
+      if (fragile.length) A.weak.unshift("<b>" + fragile.map(nameHtml).join(", ") +
         "</b> prend ×1,6 du boss : sors-le" + (fragile.length > 1 ? "s" : "") + " dès qu'il cible.");
       if (T.bt && T.bt.key === "raid") A.weak.push("Combat long : garde une réserve d'EP pour le soin, le burst ne suffira pas seul.");
       if (T.bt && T.bt.key === "entrainement") A.strong.push("Cible immobile qui ne riposte pas : tu peux enchaîner le cycle sans jamais reculer.");
@@ -2162,7 +2124,7 @@
       var why = T.notes[a.name];
       var isPinned = pins().indexOf(a.name) >= 0;
       h += '<div class="card teamcard fxi' + (isMain ? " main" : "") + '" style="--i:' + mi + '">' +
-        '<div class="icocell">' + aniLink(a, icon(a, 44)) + "<div><b>" + aniLink(a, esc(a.name)) + "</b>" +
+        '<div class="icocell">' + aniLink(a, icon(a, 44)) + "<div><b>" + aniLink(a, nameHtml(a)) + "</b>" +
         '<div class="chips">' + a.elems.map(elemChip).join(" ") + " " + roleChip(a.role) + "</div></div>" +
         (view.teamMode === "auto" && !isMain
           ? '<button class="pinbtn' + (isPinned ? " on" : "") + '" data-pin="' + esc(a.name) +
@@ -2171,7 +2133,7 @@
           : "") + "</div>" +
         (isMain ? '<div class="tag">Aniimo principal</div>' : (isPinned ? '<div class="tag pin">Gardé</div>' : "")) +
         '<dl class="kv mini"><dt>ATK</dt><dd class="mono">' + a.atk + '</dd><dt>BREAK</dt><dd class="mono">' + a.brk +
-        '</dd><dt>REGEN</dt><dd class="mono">' + a.regen + '</dd><dt>Meilleur coup</dt><dd class="mono">' + hit(a) + "</dd></dl>" +
+        '</dd><dt>REGEN</dt><dd class="mono">' + a.regen + "</dd></dl>" +
         '<p class="tr">' + esc(a.traitFr || a.trait) + "</p>" +
         (why && why.length ? '<p class="why"><span class="lbl">Pourquoi lui</span>' + esc(why.join(" · ")) + "</p>" : "") +
         "</div>";
@@ -2739,12 +2701,11 @@
 
   function adminJobs() {
     var h = '<div class="card"><h3>Métiers Aniimo</h3><div class="tablewrap"><table class="tight" id="jobtable"><thead><tr>' +
-      "<th>Icône</th><th>Nom</th><th>Anglais</th><th>Rang</th><th>Niv. max</th><th>Rendement</th><th>Couleur</th><th>Description</th><th></th></tr></thead><tbody>";
+      "<th>Icône</th><th>Nom</th><th>Rang</th><th>Niv. max</th><th>Rendement</th><th>Couleur</th><th>Description</th><th></th></tr></thead><tbody>";
     S.jobs.forEach(function (j, i) {
       h += "<tr data-job='" + i + "'>" +
         '<td><input value="' + esc(j.icon) + '" data-k="icon" style="width:44px"></td>' +
         '<td><input value="' + esc(j.name) + '" data-k="name" style="width:100px"></td>' +
-        '<td><input value="' + esc(j.en) + '" data-k="en" style="width:100px"></td>' +
         '<td><input type="number" value="' + j.rank + '" data-k="rank" style="width:56px"></td>' +
         '<td><input type="number" value="' + j.max + '" data-k="max" style="width:56px"></td>' +
         '<td><input type="number" value="' + j.rate + '" data-k="rate" style="width:66px"></td>' +
@@ -3451,7 +3412,7 @@
 
   /* on retient la page ouverte pour la retrouver après un rafraîchissement */
   var VIEW_KEY = "aniimo.view";
-  var VIEW_KEEP = ["tab", "tier", "abil", "teamMode", "teamMain", "adminSec", "tfold", "teamVar"];
+  var VIEW_KEEP = ["tab", "tier", "abil", "teamMode", "teamMain", "adminSec", "tfold"];
   function saveView() {
     try {
       var o = {};
@@ -3464,6 +3425,9 @@
       var o = JSON.parse(localStorage.getItem(VIEW_KEY) || "null");
       if (!o) return;
       VIEW_KEEP.forEach(function (k) { if (o[k] !== undefined && o[k] !== null) view[k] = o[k]; });
+      /* "Team automatique" a été retiré : les visiteurs qui avaient encore ce mode
+         enregistré basculent simplement sur "Composer moi-même". */
+      if (view.teamMode === "auto") view.teamMode = "manuel";
       /* une liste perso supprimée entre-temps ne doit pas bloquer la page */
       if (typeof view.tier === "string" && view.tier.indexOf("L:") === 0 &&
           !tListOf(view.tier.slice(2))) view.tier = "ALL";
@@ -3770,11 +3734,6 @@
         var cur = bossOf(view.boss);
         if (cur && view.bossType && cur.type !== view.bossType) view.boss = "";
         render();
-      };
-    });
-    document.querySelectorAll("[data-variant]").forEach(function (b) {
-      b.onclick = function () {
-        view.teamVar = b.dataset.variant; animate = true; render(); animate = false;
       };
     });
     /* un nom conseillé se pose dans la première case libre */
