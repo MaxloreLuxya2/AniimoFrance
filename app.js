@@ -865,7 +865,10 @@
     saveListVotes(); render();
   }
   function listTally(l, name) {
-    var t = ((l || {}).votes || {})[name] || {};
+    /* les comptes les plus à jour viennent du serveur ; on retombe sur les données
+       du site (state.json) si la liste n'est pas (encore) connue en ligne. */
+    var live = LIVE.lists && LIVE.lists.filter(function (x) { return x.id === (l || {}).id; })[0];
+    var t = ((live || l || {}).votes || {})[name] || {};
     return { ok: t.ok || 0, no: t.no || 0 };
   }
   function listBallot(l) {
@@ -891,23 +894,73 @@
     return '<div class="votebox lvbox"><div class="vbhead"><b>Ton avis sur « ' +
       esc(l.title || "cette liste") + ' »</b><span class="betatag">BETA</span></div>' +
       "<p>Sous chaque vignette, ✓ valide le palier proposé et ✗ le conteste. " +
-      "Quand tu as fini, copie ton avis et envoie-le à l'auteur ou sur le Discord : " +
-      "il sera compté et affiché sur la liste.</p>" +
+      "Quand tu as fini, clique sur « Enregistrer mes votes » : ton avis est sauvegardé sur le site " +
+      "et compté avec celui des autres joueurs, visible par tous sur cette liste.</p>" +
       '<div class="actions"><span class="rank">' + ok + " d'accord · " + no + " en désaccord</span>" +
       '<span style="flex:1"></span>' +
-      '<button class="btn' + (ok + no ? " primary" : "") + '" id="lvcopy"' + (ok + no ? "" : " disabled") +
-      ">Copier mon avis</button>" +
+      '<button class="btn' + (ok + no ? " primary" : "") + '" id="lvsave"' + (ok + no ? "" : " disabled") +
+      ">Enregistrer mes votes</button>" +
       (ok + no ? '<button class="btn" id="lvclear">Effacer mes ✓ ✗</button>' : "") + "</div></div>";
+  }
+
+  /* ---- sauvegarde partagée en ligne (fonctions Netlify + Netlify Blobs) ----
+     Les listes créées par les joueurs et les votes (liste comme officiels) sont
+     envoyés à une petite fonction serveur qui les stocke pour que TOUT LE MONDE
+     les voie, sans passer par le panneau admin ni par un commit. */
+  var TIER_API = "/.netlify/functions/tier-api";
+  var LIVE = { lists: null, officialVotes: null, loaded: false, failed: false };
+  function voterId() {
+    var k = "aniimo.voter";
+    try {
+      var v = localStorage.getItem(k);
+      if (!v) {
+        v = "v" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+        localStorage.setItem(k, v);
+      }
+      return v;
+    } catch (e) { return "v" + Math.random().toString(36).slice(2, 10); }
+  }
+  /* clé partagée avec netlify/functions/tier-api.js, pour les actions de modération
+     (supprimer une liste, effacer un vote officiel) : n'est envoyée que si le panneau
+     admin est déverrouillé. Si tu changes un jour la phrase de passe du panneau,
+     dis-le à Claude pour mettre aussi celle-ci à jour côté fonction Netlify. */
+  var API_ADMIN_KEY = "AniimoFrance2026";
+  function adminPass() { return adminLocked() ? "" : API_ADMIN_KEY; }
+  function fetchLive() {
+    fetch(TIER_API, { cache: "no-store" }).then(function (r) {
+      return r.ok ? r.json() : null;
+    }).then(function (d) {
+      if (!d) { LIVE.failed = true; return; }
+      LIVE.loaded = true; LIVE.failed = false;
+      LIVE.lists = d.lists || []; LIVE.officialVotes = d.officialVotes || {};
+      /* on fusionne dans S pour que tout le code existant (tally, listTally, tAll…) marche sans rien changer */
+      S.tierVotes = LIVE.officialVotes;
+      var byId = {};
+      (S.tierPublic || []).forEach(function (l) { byId[l.id] = l; });
+      LIVE.lists.forEach(function (l) {
+        var mine = tLists().filter(function (x) { return x.id === l.id; })[0];
+        if (mine && mine._tok) l._tok = mine._tok;
+        byId[l.id] = l;
+      });
+      S.tierPublic = Object.keys(byId).map(function (k2) { return byId[k2]; });
+      render();
+    }).catch(function () { LIVE.failed = true; });
+  }
+  function apiPost(body) {
+    return fetch(TIER_API, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+    }).then(function (r) { return r.json().catch(function () { return null; }).then(function (d) { return { status: r.status, d: d }; }); });
   }
 
   /* listes personnalisées : créées ici, partagées par code/lien (site statique) */
   function tLists() { S.tierLists = S.tierLists || []; return S.tierLists; }
   function tPublic() { S.tierPublic = S.tierPublic || []; return S.tierPublic; }
-  /* toutes les listes visibles : celles publiées avec le site + celles de ce navigateur */
+  /* toutes les listes visibles : d'abord ma propre copie (celle que j'édite),
+     puis celles publiées avec le site / sauvegardées en ligne par les autres joueurs. */
   function tAll() {
     var seen = {}, out = [];
-    tPublic().forEach(function (l) { seen[l.id] = 1; out.push(l); });
-    tLists().forEach(function (l) { if (!seen[l.id]) out.push(l); });
+    tLists().forEach(function (l) { seen[l.id] = 1; out.push(l); });
+    tPublic().forEach(function (l) { if (!seen[l.id]) out.push(l); });
     return out;
   }
   function tIsPublic(id) { return tPublic().some(function (l) { return l.id === id; }); }
@@ -1013,7 +1066,7 @@
           return '<div class="tfcard' + (on ? " on" : "") + '">' +
             '<div class="tfrow"><b>' + esc(l.title || "Liste") + "</b>" +
             '<span class="tfbadge' + (pub ? " pub" : "") + '">' +
-            (pub ? "publiée" : mine ? "la mienne" : "reçue par lien") + "</span></div>" +
+            (pub ? "en ligne" : mine ? "la mienne (pas encore enregistrée)" : "reçue par lien") + "</span></div>" +
             '<div class="tfby">par <b>' + esc(l.pseudo || "anonyme") + "</b></div>" +
             '<div class="tfmini">' + TIERS.map(function (t) {
               var c = 0;
@@ -1027,16 +1080,16 @@
             '<button type="button" class="btn" data-lcopy="' + esc(l.id) + '">Lien</button></div></div>';
         }).join("") + "</div>";
       }
-      h += '<p class="tfnote">Une liste se partage par son lien : il contient la liste entière, ' +
-        "aucun compte n'est nécessaire. Les listes marquées <b>publiée</b> sont livrées avec le site : " +
-        "tout le monde les voit en arrivant.</p></div>";
+      h += '<p class="tfnote">Les listes marquées <b>en ligne</b> sont sauvegardées sur le site : ' +
+        "tout le monde les voit en arrivant, sans rien faire de plus. Une liste se partage aussi par son lien, " +
+        "qui l'ouvre directement.</p></div>";
     }
     h += "</div>";
 
     /* --- formulaire de création --- */
     if (view.tcreate) {
       h += '<form class="card tcreate" id="tcform"><h3>Créer ma Tiers List</h3>' +
-        "<p>Ta liste reste dans ce navigateur. Pour la faire voir, copie son lien de partage : il contient la liste entière, aucun compte n'est nécessaire.</p>" +
+        "<p>Ta liste se construit ici, dans ce navigateur. Clique sur « Enregistrer » quand tu veux la sauvegarder sur le site : elle devient alors visible par tous, sans compte ni lien à envoyer.</p>" +
         '<div class="row">' +
         '<div class="f"><label for="tc-p">Ton pseudo</label><input id="tc-p" required maxlength="24" placeholder="ex. Maxlore"></div>' +
         '<div class="f"><label for="tc-t">Nom de la liste</label><input id="tc-t" maxlength="40" placeholder="ex. Tier list PvE 1.2"></div>' +
@@ -1078,7 +1131,7 @@
         (view.tvote ? "Fermer le vote" : "Vote") + "</button>" +
         (tIsMine(list.id) ? '<button class="btn save" id="tsave">Enregistrer</button>' : "") +
         (tIsMine(list.id) ? "" : '<button class="btn" id="tfork">Reprendre à mon compte</button>') +
-        (tIsPublic(list.id) ? "" : '<button class="btn danger" id="tdel">Supprimer</button>') : "") + "</div>";
+        (tIsMine(list.id) || !adminLocked() ? '<button class="btn danger" id="tdel">Supprimer</button>' : "") : "") + "</div>";
 
     if (list) h += listVotePanel(list);
 
@@ -1482,10 +1535,10 @@
     return '<div class="votebox"><div class="vbhead"><b>Vote de la communauté</b>' +
       '<span class="betatag">BETA</span></div>' +
       "<p>Sous chaque vignette, ▲ propose de le monter d'un palier et ▼ de le descendre. " +
-      "Tes votes restent dans ton navigateur : copie ton bulletin et envoie-le sur le Discord, " +
-      "l'administrateur les compte et applique ceux qui font consensus.</p>" +
-      '<div class="actions"><button class="btn' + (n ? " primary" : "") + '" id="vcopy"' +
-      (n ? "" : " disabled") + ">Copier mon bulletin" + (n ? " (" + n + ")" : "") + "</button>" +
+      "Quand tu as fini, clique sur « Enregistrer mes votes » : ils sont sauvegardés sur le site. " +
+      "L'administrateur les voit dans son panneau et applique ceux qui font consensus.</p>" +
+      '<div class="actions"><button class="btn' + (n ? " primary" : "") + '" id="vsave"' +
+      (n ? "" : " disabled") + ">Enregistrer mes votes" + (n ? " (" + n + ")" : "") + "</button>" +
       (n ? '<button class="btn" id="vclear">Effacer mes votes</button>' : "") + "</div></div>";
   }
 
@@ -2944,10 +2997,10 @@
     });
 
     var h = '<div class="card"><h3>Votes de la communauté <span class="betatag">BETA</span></h3>' +
-      "<p>Les visiteurs proposent de monter ou descendre un Aniimo d'un palier, puis t'envoient un bulletin. " +
-      "Colle-le ici pour l'ajouter au comptage. Rien ne bouge dans la Tiers List tant que tu n'as pas appliqué une proposition : " +
-      "tu gardes la main sur chaque changement. Le même champ accepte les avis donnés sur la liste d'un joueur : " +
-      "ils sont alors comptés sur cette liste, vignette par vignette.</p>" +
+      "<p>Les visiteurs proposent de monter ou descendre un Aniimo d'un palier, puis cliquent sur « Enregistrer mes votes » : " +
+      "ça arrive ici tout seul. Rien ne bouge dans la Tiers List tant que tu n'as pas appliqué une proposition : " +
+      "tu gardes la main sur chaque changement. Le champ ci-dessous ne sert plus qu'en secours, pour ajouter " +
+      "à la main un avis reçu autrement (Discord, oralement…).</p>" +
       '<div class="row"><div class="f" style="flex:2"><label for="vpaste">Bulletin ou avis reçu</label>' +
       '<input id="vpaste" type="text" placeholder="colle ici le code copié par le visiteur"></div>' +
       '<div class="f"><label for="vw">Poids de ce bulletin</label>' +
@@ -3037,12 +3090,15 @@
         tFix()[n] = k;
         delete tally()[n];
         persist(n + " placé en " + k); render();
+        apiPost({ action: "clear-official-vote", name: n, adminPass: adminPass() }).catch(function () {});
       };
     });
     document.querySelectorAll("[data-vno]").forEach(function (b) {
       b.onclick = function () {
-        delete tally()[b.dataset.vno];
+        var n = b.dataset.vno;
+        delete tally()[n];
         persist("Proposition rejetée"); render();
+        apiPost({ action: "clear-official-vote", name: n, adminPass: adminPass() }).catch(function () {});
       };
     });
   }
@@ -3084,29 +3140,29 @@
 
     var LS = tAll();
     h += '<div class="card" style="margin-top:14px"><h3>Les Tiers du Foyer</h3>' +
-      "<p>Les listes <b>publiées</b> partent avec le site : tout le monde les voit dans le dépliant en arrivant sur la Tiers List. Les autres ne vivent que dans ce navigateur. Pour ajouter la liste d'un joueur, demande-lui son lien de partage et colle-le ci-dessous.</p>" +
+      "<p>Dès qu'un joueur clique sur « Enregistrer » sur sa liste, elle est sauvegardée sur le site et " +
+      "<b>tout le monde la voit</b> aussitôt, sans rien faire de ton côté. Tu peux quand même en ajouter une " +
+      "toi-même à partir d'un lien reçu, ou en retirer une du site.</p>" +
       '<div class="toolbar"><div class="field" style="flex:1"><label for="tadd">Lien ou code reçu</label>' +
       '<input id="tadd" type="text" placeholder="https://…/#liste=… ou le code seul"></div>' +
-      '<button class="btn primary" id="taddgo">Ajouter et publier</button></div>';
+      '<button class="btn primary" id="taddgo">Ajouter au site</button></div>';
     if (!LS.length) h += '<p class="note">Aucune liste pour le moment.</p>';
     else {
       h += '<div class="tablewrap"><table class="tight"><thead><tr><th>Liste</th><th>Pseudo</th>' +
         "<th>Placés</th><th>Visibilité</th><th></th></tr></thead><tbody>";
       LS.forEach(function (l) {
-        var pub = tIsPublic(l.id);
+        var live = LIVE.lists && LIVE.lists.some(function (x) { return x.id === l.id; });
         h += "<tr><td><b>" + esc(l.title || "Liste") + "</b></td><td>" + esc(l.pseudo || "anonyme") + "</td>" +
           "<td>" + Object.keys(l.tiers || {}).length + "</td>" +
-          "<td>" + (pub ? '<span class="tfbadge pub">publiée</span>'
-            : '<span class="tfbadge">ce navigateur</span>') + "</td>" +
+          "<td>" + (live ? '<span class="tfbadge pub">en ligne, visible par tous</span>'
+            : '<span class="tfbadge">pas encore enregistrée en ligne</span>') + "</td>" +
           '<td><button type="button" class="btn" data-lgo="' + esc(l.id) + '">Voir</button> ' +
           '<button type="button" class="btn" data-lcopy="' + esc(l.id) + '">Copier le lien</button> ' +
-          (pub ? '<button type="button" class="btn" data-lunpub="' + esc(l.id) + '">Dépublier</button> '
-               : '<button type="button" class="btn primary" data-lpub="' + esc(l.id) + '">Publier pour tous</button> ') +
           '<button type="button" class="btn danger" data-ldel="' + esc(l.id) + '">Supprimer</button></td></tr>';
       });
       h += "</tbody></table></div>";
     }
-    h += '<p class="note">Publier une liste ici la place dans <code>state.json</code> : elle devient visible pour tous après un « Publier » puis un commit du dossier. Un envoi automatique par les visiteurs demanderait un serveur, ce que ce site — entièrement statique — n\'a pas.</p>';
+    if (LIVE.failed) h += '<p class="note">La sauvegarde en ligne ne répond pas pour le moment (fonctions Netlify pas encore déployées, ou site hors ligne) : ce tableau montre les listes connues de ce navigateur.</p>';
     return h + "</div>";
   }
 
@@ -3143,19 +3199,8 @@
         S.tierLists = tLists().filter(function (x) { return x.id !== l.id; });
         S.tierPublic = tPublic().filter(function (x) { return x.id !== l.id; });
         persist("Liste supprimée"); render();
-      };
-    });
-    document.querySelectorAll("[data-lpub]").forEach(function (b) {
-      b.onclick = function () {
-        var l = tListOf(b.dataset.lpub); if (!l || tIsPublic(l.id)) return;
-        tPublic().push(JSON.parse(JSON.stringify(l)));
-        persist("Liste publiée pour tous"); render();
-      };
-    });
-    document.querySelectorAll("[data-lunpub]").forEach(function (b) {
-      b.onclick = function () {
-        S.tierPublic = tPublic().filter(function (x) { return x.id !== b.dataset.lunpub; });
-        persist("Liste retirée du site"); render();
+        apiPost({ action: "delete-list", id: l.id, editToken: l._tok || "", adminPass: adminPass() })
+          .then(function () { fetchLive(); }).catch(function () {});
       };
     });
     on("taddgo", "onclick", function () {
@@ -3164,9 +3209,12 @@
       var d;
       try { d = tDec(t); } catch (e) { toast("Ce code ne correspond à aucune Tiers List."); return; }
       if (!d || !d.x) { toast("Ce code ne correspond à aucune Tiers List."); return; }
-      tPublic().push({ id: newListId(), pseudo: d.p || "anonyme", title: d.t || "Liste partagée",
-                       tiers: d.x, at: Date.now() });
-      persist("Liste ajoutée et publiée"); render();
+      var newId = newListId();
+      apiPost({ action: "save-list", list: { id: newId, pseudo: d.p || "anonyme", title: d.t || "Liste partagée", tiers: d.x } })
+        .then(function (res) {
+          if (res.d && res.d.ok) { toast("Liste ajoutée et visible par tous."); fetchLive(); }
+          else toast("Impossible d'enregistrer cette liste en ligne pour le moment.");
+        }).catch(function () { toast("Connexion impossible : réessaie dans un instant."); });
     });
   }
 
@@ -3473,11 +3521,23 @@
     document.querySelectorAll("[data-vote]").forEach(function (b) {
       b.onclick = function (e) { e.stopPropagation(); castVote(b.dataset.vn, b.dataset.vote); };
     });
-    on("vcopy", "onclick", function () {
-      var c = voteBallot();
-      if (!c) return;
-      copyText(c);
-      toast("Bulletin copié — colle-le sur le Discord pour qu'il soit compté.");
+    on("vsave", "onclick", function () {
+      var v = myVotes();
+      if (!Object.keys(v).length) return;
+      var btn = document.getElementById("vsave");
+      if (btn) btn.disabled = true;
+      apiPost({ action: "vote-official", voterId: voterId(), votes: v }).then(function (res) {
+        if (btn) btn.disabled = false;
+        if (res.d && res.d.ok) {
+          toast("Tes votes sont enregistrés sur le site et comptés avec ceux des autres joueurs.");
+          fetchLive();
+        } else {
+          toast("Impossible d'enregistrer tes votes pour le moment — réessaie dans un instant.");
+        }
+      }).catch(function () {
+        if (btn) btn.disabled = false;
+        toast("Connexion impossible : réessaie dans un instant.");
+      });
     });
     on("vclear", "onclick", function () {
       VOTES = {}; saveVotes(); render(); toast("Votes effacés");
@@ -3523,19 +3583,30 @@
 
     on("tsave", "onclick", function () {
       var l = curList(); if (!l) return;
-      l.at = l.at || Date.now();
-      if (!adminLocked()) {
-        /* l'administrateur enregistre ET publie d'un coup : la liste (avec ses votes) */
-        /* part dans state.json au prochain « Publier » du panneau admin, visible pour tous. */
-        S.tierPublic = tPublic().filter(function (x) { return x.id !== l.id; });
-        tPublic().push(JSON.parse(JSON.stringify(l)));
-        persist("Liste enregistrée et publiée");
-        toast("« " + (l.title || "Ta liste") + " » est enregistrée et publiée : elle sera visible par tous après le prochain « Publier » du panneau admin.");
-        render();
-      } else {
-        persist("Liste enregistrée");
-        toast("« " + (l.title || "Ta liste") + " » est enregistrée dans ce navigateur. Pour la rendre visible à tous, copie son lien de partage et envoie-le à l'administrateur du site.");
-      }
+      l.at = Date.now();
+      var btn = document.getElementById("tsave");
+      if (btn) { btn.disabled = true; btn.textContent = "Enregistrement…"; }
+      apiPost({
+        action: "save-list",
+        list: { id: l.id, pseudo: l.pseudo, title: l.title, tiers: l.tiers, editToken: l._tok || "" }
+      }).then(function (res) {
+        if (btn) { btn.disabled = false; btn.textContent = "Enregistrer"; }
+        if (res.d && res.d.ok) {
+          if (res.d.editToken) l._tok = res.d.editToken;
+          persist("Liste enregistrée");
+          toast("« " + (l.title || "Ta liste") + " » est enregistrée et visible par tous sur le site.");
+          fetchLive();
+        } else if (res.status === 403) {
+          toast("Cette liste a été créée depuis un autre navigateur : impossible de l'écraser depuis ici.");
+        } else {
+          persist("Liste enregistrée (hors-ligne)");
+          toast("Impossible de la publier pour l'instant — elle reste dans ce navigateur. Réessaie dans un instant.");
+        }
+      }).catch(function () {
+        if (btn) { btn.disabled = false; btn.textContent = "Enregistrer"; }
+        persist("Liste enregistrée (hors-ligne)");
+        toast("Connexion impossible : la liste reste dans ce navigateur pour l'instant. Réessaie plus tard pour la publier.");
+      });
     });
     on("tvote", "onclick", function () {
       view.tvote = !view.tvote; view.tpick = null;
@@ -3548,12 +3619,24 @@
         castListVote(l.id, b.dataset.lvn, b.dataset.lv);
       };
     });
-    on("lvcopy", "onclick", function () {
+    on("lvsave", "onclick", function () {
       var l = curList(); if (!l) return;
-      var c = listBallot(l);
-      if (!c) return;
-      copyText(c);
-      toast("Avis copié — envoie-le à l'auteur de la liste ou sur le Discord.");
+      var v = listVotes()[l.id] || {};
+      if (!Object.keys(v).length) return;
+      var btn = document.getElementById("lvsave");
+      if (btn) btn.disabled = true;
+      apiPost({ action: "vote-list", listId: l.id, voterId: voterId(), votes: v }).then(function (res) {
+        if (btn) btn.disabled = false;
+        if (res.d && res.d.ok) {
+          toast("Ton avis sur « " + (l.title || "cette liste") + " » est enregistré et visible par tous.");
+          fetchLive();
+        } else {
+          toast("Impossible d'enregistrer ton avis pour le moment — réessaie dans un instant.");
+        }
+      }).catch(function () {
+        if (btn) btn.disabled = false;
+        toast("Connexion impossible : réessaie dans un instant.");
+      });
     });
     on("lvclear", "onclick", function () {
       var l = curList(); if (!l) return;
@@ -3569,7 +3652,10 @@
       var l = curList(); if (!l) return;
       if (!confirm("Supprimer « " + (l.title || "cette liste") + " » ?")) return;
       S.tierLists = tLists().filter(function (x) { return x.id !== l.id; });
+      S.tierPublic = tPublic().filter(function (x) { return x.id !== l.id; });
       view.tier = "ALL"; persist("Tiers list supprimée"); render();
+      apiPost({ action: "delete-list", id: l.id, editToken: l._tok || "", adminPass: adminPass() })
+        .then(function () { fetchLive(); }).catch(function () {});
     });
     on("tfork", "onclick", function () {
       var l = curList(); if (!l) return;
@@ -4195,4 +4281,6 @@
   /* premier affichage : on joue l'effet de la catégorie, comme à l'arrivée
      sur celle-ci — c'est ce qu'on attend après un rafraîchissement. */
   animate = true; render(); animate = false;
+  /* on va chercher les listes et votes sauvegardés en ligne (fonctions Netlify) */
+  fetchLive();
 })();

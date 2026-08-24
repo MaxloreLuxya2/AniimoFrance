@@ -1,0 +1,8 @@
+{
+  "name": "aniimo-france-backend",
+  "private": true,
+  "description": "Fonctions Netlify pour Aniimo France (sauvegarde des Tiers List et votes de la communaute).",
+  "dependencies": {
+    "@netlify/blobs": "^11.0.1"
+  }
+}
