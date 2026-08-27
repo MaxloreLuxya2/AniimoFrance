@@ -2,33 +2,7 @@
    Stocke tout dans un seul blob Netlify (petite échelle, site de fan) : pas de base de données
    à gérer. Lecture (GET) publique. Écriture (POST) selon l'action demandée dans le corps JSON. */
 
-const { getStore } = require("@netlify/blobs");
-
-/* Même phrase que le verrou du panneau admin du site, au moment de la mise en place.
-   Si tu changes la phrase de passe dans le panneau admin, dis-le à Claude pour qu'il
-   mette aussi celle-ci à jour : les deux ne sont pas reliées automatiquement. */
-const ADMIN_KEY = "AniimoFrance2026";
-
-/* La configuration automatique de Netlify Blobs (siteID/token injectés tout seuls)
-   n'est pas fiable sur tous les sites en ce moment. Si les variables d'environnement
-   BLOBS_SITE_ID et BLOBS_TOKEN sont définies (Site settings → Environment variables),
-   on les utilise explicitement ; sinon on retombe sur l'injection automatique. */
-function blobStore() {
-  var opts = { name: "aniimo-tiers", consistency: "strong" };
-  if (process.env.BLOBS_SITE_ID && process.env.BLOBS_TOKEN) {
-    opts.siteID = process.env.BLOBS_SITE_ID;
-    opts.token = process.env.BLOBS_TOKEN;
-  }
-  return getStore(opts);
-}
-
-function json(status, body) {
-  return {
-    statusCode: status,
-    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
-    body: JSON.stringify(body)
-  };
-}
+const { ADMIN_KEY, blobStore, json } = require("./_shared");
 
 function emptyData() {
   return { lists: {}, officialVoters: {} };
@@ -87,7 +61,7 @@ exports.handler = async function (event) {
 };
 
 async function handleEvent(event) {
-  var store = blobStore();
+  var store = blobStore("aniimo-tiers");
 
   if (event.httpMethod === "GET") {
     var data = await loadData(store);
