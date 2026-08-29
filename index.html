@@ -146,6 +146,11 @@ button,input,select,textarea{font:inherit;color:inherit}
   .tab{width:auto}
 }
 
+/* Chrome « ancre » le défilement sur un élément quand le contenu change, et
+   repositionne la page de lui-même. Comme le site redessine sa vue entière à
+   chaque action et restaure lui-même la position, les deux se contredisaient et
+   la page sautait. On coupe l'ancrage : c'est notre restauration qui décide. */
+#app,.main,.tboard{overflow-anchor:none}
 .main{padding:26px 30px 70px; min-width:0}
 @media (max-width:700px){ .main{padding:18px 14px 60px} }
 .head{display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 18px; margin-bottom:6px}
@@ -933,7 +938,20 @@ table td .chip{margin:0 1px}
 
 .tcard{width:78px; display:grid; gap:3px; justify-items:center; text-align:center; align-content:start}
 .tboard.editing .tcard{cursor:grab}
-.tcard.dragging{opacity:.4}
+/* même verrou côté CSS : ni glisser natif, ni sélection de texte sur une
+   vignette, pour que seul notre glisser au pointeur s'applique. */
+.tcard[data-drag],.tcard[data-drag] *{-webkit-user-drag:none; user-select:none; -webkit-user-select:none}
+.tcard.dragging{opacity:.35}
+/* vignette fantôme qui suit le curseur pendant le glisser au pointeur.
+   Positionnée en fixed (coordonnées écran) : elle reste sous la souris
+   pendant que la page défile à la molette. */
+.tcghost{position:fixed; left:0; top:0; z-index:120; width:78px; pointer-events:none;
+  transform:translate(-50%,-50%) scale(.94); opacity:.92;
+  filter:drop-shadow(0 10px 18px rgba(0,0,0,.45))}
+.tcghost .tcinfo,.tcghost .votes{display:none}
+/* pendant le glisser : plus de sélection de texte parasite, curseur explicite */
+body.tdragging{cursor:grabbing; user-select:none; -webkit-user-select:none}
+body.tdragging .tcard{cursor:grabbing}
 .tcard.picked .tcimg{border-color:var(--gold-line); border-width:2px;
   box-shadow:0 0 0 3px color-mix(in srgb,var(--gold-line) 30%,transparent)}
 .tcimg{position:relative; width:78px; height:78px; display:grid; place-items:center;
@@ -1281,6 +1299,18 @@ td .anilink:hover .ico, .tcimg .anilink:hover .ico, .powhead .anilink:hover .ico
     0%,100%{box-shadow:0 8px 20px -12px #5865F2}
     50%{box-shadow:0 8px 24px -8px #5865F2, 0 0 16px 3px rgba(88,101,242,.5)}
   }
+}
+/* note de rythme de mise à jour + bouton Discord réunis dans un même bloc :
+   c'est le bloc qui porte le margin-top:auto (et non plus le bouton seul),
+   pour que la phrase reste collée au-dessus du bouton dans les deux mises
+   en page — barre verticale sur ordinateur, barre horizontale sur mobile. */
+.dcwrap{margin-top:auto; display:flex; flex-direction:column}
+.dcwrap .dcbtn{margin-top:0}
+.railupd{margin:0 0 8px; padding:0 6px; font-size:11px; line-height:1.4;
+  color:var(--muted); text-align:center}
+@media (max-width:1000px){
+  .dcwrap{margin-top:14px; margin-left:auto; max-width:100%}
+  .railupd{text-align:right; padding:0 2px}
 }
 .dcico{flex:none; width:34px; height:34px; display:grid; place-items:center; border-radius:9px;
   background:#fff; color:#5865F2}
@@ -3655,7 +3685,8 @@ astuces et actualités du jeu en français.</p>
       (S.tierPublic || []).forEach(function (l) { byId[l.id] = l; });
       LIVE.lists.forEach(function (l) {
         var mine = tLists().filter(function (x) { return x.id === l.id; })[0];
-        if (mine && mine._tok) l._tok = mine._tok;
+        l._tok = tokOf(l.id) || (mine && mine._tok) || "";
+        l._saved = true;
         byId[l.id] = l;
       });
       S.tierPublic = Object.keys(byId).map(function (k2) { return byId[k2]; });
@@ -3747,6 +3778,45 @@ astuces et actualités du jeu en français.</p>
   function tPublic() { S.tierPublic = S.tierPublic || []; return S.tierPublic; }
   /* toutes les listes visibles : d'abord ma propre copie (celle que j'édite),
      puis celles publiées avec le site / sauvegardées en ligne par les autres joueurs. */
+  /* ---- propriété d'une Tiers List de joueur ----------------------------
+     Le serveur attribue à chaque liste une clé de modification tirée au hasard
+     et refuse tout enregistrement qui ne la présente pas : c'est elle, et non le
+     pseudo, qui fait la preuve du propriétaire (deux joueurs peuvent porter le
+     même pseudo, et un pseudo se devine).
+
+     Ces clés — comme les listes elles-mêmes — sont rangées dans leurs propres
+     entrées, minuscules. Le brouillon complet pèse plus de 10 Mo, largement
+     au-dessus du quota du navigateur : son écriture échouait à chaque fois, et
+     la clé disparaissait donc au rechargement. C'était la raison pour laquelle
+     on ne pouvait pas revenir modifier sa liste. */
+  var TOK_KEY = "aniimo.tiertok", MYL_KEY = "aniimo.mylists";
+  function tokAll() {
+    try { return JSON.parse(localStorage.getItem(TOK_KEY) || "{}") || {}; }
+    catch (e) { return {}; }
+  }
+  function tokOf(id) { return tokAll()[id] || ""; }
+  function tokSet(id, tok) {
+    if (!id || !tok) return;
+    var m = tokAll(); m[id] = tok;
+    try { localStorage.setItem(TOK_KEY, JSON.stringify(m)); } catch (e) {}
+  }
+  function tokDel(id) {
+    var m = tokAll(); delete m[id];
+    try { localStorage.setItem(TOK_KEY, JSON.stringify(m)); } catch (e) {}
+  }
+  /* sauvegarde locale des seules listes du joueur : quelques kilo-octets, donc
+     elle passe là où le brouillon complet est refusé. */
+  function saveMine(msg) {
+    try { localStorage.setItem(MYL_KEY, JSON.stringify(S.tierLists || [])); } catch (e) {}
+    if (msg) toast(msg);
+  }
+  function loadMine() {
+    try {
+      var v = JSON.parse(localStorage.getItem(MYL_KEY) || "null");
+      if (v && v.length && !(S.tierLists && S.tierLists.length)) S.tierLists = v;
+    } catch (e) {}
+  }
+
   function tAll() {
     var seen = {}, out = [];
     tLists().forEach(function (l) { seen[l.id] = 1; out.push(l); });
@@ -3754,7 +3824,12 @@ astuces et actualités du jeu en français.</p>
     return out;
   }
   function tIsPublic(id) { return tPublic().some(function (l) { return l.id === id; }); }
-  function tIsMine(id) { return tLists().some(function (l) { return l.id === id && !l.shared; }); }
+  /* propriétaire = je détiens la clé de cette liste, ou elle vient d'être créée
+     ici et n'a pas encore été enregistrée (elle n'a donc pas encore de clé). */
+  function tIsMine(id) {
+    if (tokOf(id)) return true;
+    return tLists().some(function (l) { return l.id === id && !l.shared && !l._saved; });
+  }
   function tListOf(id) {
     var l = tAll();
     for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i];
@@ -3833,8 +3908,13 @@ astuces et actualités du jeu en français.</p>
     var h = '<div class="head"><h1>Tiers List</h1><span class="count">' +
       (list ? Object.keys(list.tiers || {}).length + " placés" : ranked.length + " Aniimo") + "</span></div>";
 
-    h += '<div class="homewarn big" style="--wc:#ff3b3b"><b class="warntag">Important</b>' +
-      "Cette Tiers List n'est pas une nécessité : tous les Aniimos sont jouables !</div>";
+    /* les deux notes ci-dessous commentent le classement officiel : elles n'ont
+       pas de sens sur une liste personnelle (« Créer » ou liste partagée), on
+       les réserve donc à la Tiers List du site. */
+    if (!list) {
+      h += '<div class="homewarn big" style="--wc:#ff3b3b"><b class="warntag">Important</b>' +
+        "Cette Tiers List n'est pas une nécessité : tous les Aniimos sont jouables !</div>";
+    }
 
     /* --- étiquettes : rôles, Tout, listes perso, Créer --- */
     h += '<div class="modes tiersw">' + TIER_ROLES.map(function (r) {
@@ -3923,7 +4003,7 @@ astuces et actualités du jeu en français.</p>
     }
     h += "</div>";
     h += votePanel();
-    h += goldNote("À noter", "Cette Tiers List vaut pour le Monde ouvert (Open World).");
+    if (!list) h += goldNote("À noter", "Cette Tiers List vaut pour le Monde ouvert (Open World).");
 
     /* --- barre d'outils --- */
     h += '<div class="toolbar"><div class="field"><label for="q">Chercher</label><input id="q" type="search" placeholder="nom…" value="' + esc(view.q) + '"></div>' +
@@ -4013,8 +4093,10 @@ astuces et actualités du jeu en français.</p>
     var kv = { DPS: hit(a), BREAK: a.brk, SUPPORT: a.regen, REGEN: a.regen, HEAL: a.regen }[rr];
     var edit = !!(list && tIsMine(list.id)) && !view.tvote;
     var picked = list && view.tpick === a.name;
+    /* pas de draggable="true" : le glisser est piloté par les événements de
+       pointeur (voir startPointerDrag), pour que la molette reste utilisable */
     return '<div class="tcard' + (picked ? " picked" : "") + '"' +
-      (edit ? ' draggable="true" data-drag="' + esc(a.name) + '"' : "") +
+      (edit ? ' data-drag="' + esc(a.name) + '"' : "") +
       ' title="' + esc(a.name + " — " + (KLAB[rr] || "Score") + " " + kv + " · score " + r.s +
         " (stats " + r.stat + ", kit " + r.kit + ")\n" + whyOf(a)) + '">' +
       '<div class="tcimg">' + (edit ? icon(a, 58) : aniLink(a, icon(a, 58))) +
@@ -6456,7 +6538,8 @@ astuces et actualités du jeu en français.</p>
         S.tierLists = tLists().filter(function (x) { return x.id !== l.id; });
         S.tierPublic = tPublic().filter(function (x) { return x.id !== l.id; });
         persist("Liste supprimée"); render();
-        apiPost(TIER_API, { action: "delete-list", id: l.id, editToken: l._tok || "", adminPass: adminPass() })
+        apiPost(TIER_API, { action: "delete-list", id: l.id,
+          editToken: tokOf(l.id) || l._tok || "", adminPass: adminPass() })
           .then(function () { fetchLive(); }).catch(function () {});
       };
     });
@@ -6698,14 +6781,16 @@ astuces et actualités du jeu en français.</p>
     var k = (e.key || "").toLowerCase();
     if ((e.ctrlKey || e.metaKey) && k === "u") e.preventDefault();
   });
-  /* glisser-déposer d'une image (clic gauche maintenu) : la classe noimgdrag couvre Chrome/Safari,
-     ce gestionnaire couvre les navigateurs qui ignorent -webkit-user-drag (Firefox notamment).
-     On laisse passer les vignettes de la Tiers List ([data-drag]) : leur glisser-déposer sert à
-     réordonner le classement, pas à récupérer l'image. */
+  /* Aucun glisser natif ne doit démarrer sur une vignette de la Tiers List.
+     Les vignettes contiennent des <img>, et une image est glissable d'office :
+     le navigateur lançait donc son propre glisser par-dessus le nôtre et, ce
+     faisant, confisquait la molette (impossible de faire défiler la page en
+     gardant le clic enfoncé). On le coupe systématiquement ici — le
+     déplacement des vignettes est entièrement piloté par startPointerDrag. */
   document.addEventListener("dragstart", function (e) {
+    if (e.target && e.target.closest && e.target.closest("[data-drag]")) { e.preventDefault(); return; }
     if (!protect().dragimg || view.tab === "admin") return;
     if (!e.target || e.target.tagName !== "IMG") return;
-    if (e.target.closest("[data-drag]")) return;
     e.preventDefault();
   });
 
@@ -6756,7 +6841,9 @@ astuces et actualités du jeu en français.</p>
           dot + lab + n + "</button>";
       });
     });
-    h += "</div>" + discordCard() +
+    h += "</div>" +
+      '<div class="dcwrap"><p class="railupd">Le site sera mis à jour tous les dimanches.</p>' +
+      discordCard() + "</div>" +
       '<div class="railnote">Dernière mise à jour : ' + esc(S.meta.updated) + "</div>";
     return h;
   }
@@ -7527,7 +7614,16 @@ astuces et actualités du jeu en français.</p>
     applyStyle();
     applyProtect();
     saveView();
-    if (t.kind === "tier") window.scrollTo(0, sy); else window.scrollTo(0, 0);
+    if (t.kind === "tier") {
+      /* on repositionne tout de suite, puis une seconde fois à la frame
+         suivante : si la mise en page n'était pas encore stabilisée (images en
+         cours de chargement), le premier appel se fait tronquer par le
+         navigateur et la page saute. */
+      window.scrollTo(0, sy);
+      requestAnimationFrame(function () {
+        if (Math.abs(window.scrollY - sy) > 2) window.scrollTo(0, sy);
+      });
+    } else window.scrollTo(0, 0);
     if (t.kind === "home") bindLaunchTimer();
     else if (launchTimerIv) { clearInterval(launchTimerIv); launchTimerIv = null; }
     if (t.kind === "admin" && adminLocked()) return;
@@ -7550,14 +7646,67 @@ astuces et actualités du jeu en français.</p>
   function curList() {
     return view.tier && view.tier.indexOf("L:") === 0 ? tListOf(view.tier.slice(2)) : null;
   }
+  /* Retrouve la vignette d'un Aniimo sans passer par un sélecteur CSS
+     (les noms peuvent contenir des caractères qui casseraient la requête). */
+  function cardEl(name) {
+    var found = null;
+    document.querySelectorAll("[data-drag]").forEach(function (c) {
+      if (!found && c.dataset.drag === name) found = c;
+    });
+    return found;
+  }
+
+  /* Déplace la vignette DANS LE DOM au lieu de redessiner toute la page.
+     C'est la clé du confort de création : un redessin complet oblige à
+     recalculer puis restaurer la position de défilement, et c'est là que la
+     page sautait. Ici rien n'est reconstruit, donc rien ne peut sauter.
+     Renvoie false si le déplacement n'est pas possible : on retombe alors
+     sur un rendu classique. */
+  function moveCardDom(name, key) {
+    var card = cardEl(name);
+    if (!card) return false;
+    var cell = card.closest(".tbcell");
+    if (!cell || !cell.parentNode) return false;
+    /* la colonne correspond au rôle : on doit rester dans la même */
+    var col = Array.prototype.indexOf.call(cell.parentNode.children, cell);
+    var target = null;
+    document.querySelectorAll(".tbcell[data-drop]").forEach(function (c) {
+      if (target || c.dataset.drop !== key || !c.parentNode) return;
+      if (Array.prototype.indexOf.call(c.parentNode.children, c) === col) target = c;
+    });
+    if (!target || target === cell) return target === cell;
+    target.appendChild(card);
+    /* compteur « N placés » du titre, tenu à jour sans tout redessiner */
+    var l = curList(), cnt = document.querySelector(".head .count");
+    if (l && cnt) cnt.textContent = Object.keys(l.tiers || {}).length + " placés";
+    return true;
+  }
+
+  /* Sélection : on se contente d'allumer la vignette, sans redessiner. */
+  function pickCard(name) {
+    view.tpick = view.tpick === name ? null : name;
+    document.querySelectorAll(".tcard.picked").forEach(function (c) { c.classList.remove("picked"); });
+    if (view.tpick) {
+      var el = cardEl(view.tpick);
+      if (el) el.classList.add("picked");
+    }
+    saveView();
+  }
+
   function placeIn(name, key) {
     var l = curList();
     if (!l || !tIsMine(l.id)) return;
     l.tiers = l.tiers || {};
     if (key === "_") delete l.tiers[name]; else l.tiers[name] = key;
+    var wasPicked = view.tpick;
     view.tpick = null;
-    persist("Tiers list mise à jour");
-    render();
+    saveMine();
+    if (moveCardDom(name, key)) {
+      if (wasPicked) {
+        document.querySelectorAll(".tcard.picked").forEach(function (c) { c.classList.remove("picked"); });
+      }
+      saveView();
+    } else render();
   }
 
   function wireTier() {
@@ -7621,7 +7770,7 @@ astuces et actualités du jeu en français.</p>
       var l = { id: newListId(), pseudo: pseudo, title: title, tiers: tiers, at: Date.now() };
       tLists().push(l);
       view.tcreate = false; view.tier = "L:" + l.id;
-      persist("Tiers list créée");
+      saveMine("Tiers list créée");
       render();
     };
 
@@ -7632,23 +7781,28 @@ astuces et actualités du jeu en français.</p>
       if (btn) { btn.disabled = true; btn.textContent = "Enregistrement…"; }
       apiPost(TIER_API, {
         action: "save-list",
-        list: { id: l.id, pseudo: l.pseudo, title: l.title, tiers: l.tiers, editToken: l._tok || "" }
+        list: { id: l.id, pseudo: l.pseudo, title: l.title, tiers: l.tiers,
+                editToken: tokOf(l.id) || l._tok || "" }
       }).then(function (res) {
         if (btn) { btn.disabled = false; btn.textContent = "Enregistrer"; }
         if (res.d && res.d.ok) {
-          if (res.d.editToken) l._tok = res.d.editToken;
-          persist("Liste enregistrée");
-          toast("« " + (l.title || "Ta liste") + " » est enregistrée et visible par tous sur le site.");
+          /* la clé n'est renvoyée qu'au créateur, et une seule fois : on la range
+             tout de suite, c'est elle qui rouvrira la liste en modification. */
+          if (res.d.editToken) { l._tok = res.d.editToken; tokSet(l.id, res.d.editToken); }
+          l._saved = true;
+          saveMine();
+          toast("« " + (l.title || "Ta liste") + " » est enregistrée sur le site et visible par tous. " +
+            "Toi seul peux la modifier.");
           fetchLive();
         } else if (res.status === 403) {
-          toast("Cette liste a été créée depuis un autre navigateur : impossible de l'écraser depuis ici.");
+          toast("Cette liste appartient à un autre navigateur : impossible de l'écraser depuis ici.");
         } else {
-          persist("Liste enregistrée (hors-ligne)");
+          saveMine("Liste enregistrée (hors-ligne)");
           toast("Impossible de la publier pour l'instant — elle reste dans ce navigateur. Réessaie dans un instant.");
         }
       }).catch(function () {
         if (btn) { btn.disabled = false; btn.textContent = "Enregistrer"; }
-        persist("Liste enregistrée (hors-ligne)");
+        saveMine("Liste enregistrée (hors-ligne)");
         toast("Connexion impossible : la liste reste dans ce navigateur pour l'instant. Réessaie plus tard pour la publier.");
       });
     });
@@ -7697,8 +7851,10 @@ astuces et actualités du jeu en français.</p>
       if (!confirm("Supprimer « " + (l.title || "cette liste") + " » ?")) return;
       S.tierLists = tLists().filter(function (x) { return x.id !== l.id; });
       S.tierPublic = tPublic().filter(function (x) { return x.id !== l.id; });
-      view.tier = "ALL"; persist("Tiers list supprimée"); render();
-      apiPost(TIER_API, { action: "delete-list", id: l.id, editToken: l._tok || "", adminPass: adminPass() })
+      view.tier = "ALL"; saveMine("Tiers list supprimée"); render();
+      apiPost(TIER_API, { action: "delete-list", id: l.id,
+        editToken: tokOf(l.id) || l._tok || "", adminPass: adminPass() })
+        .then(function () { tokDel(l.id); })
         .then(function () { fetchLive(); }).catch(function () {});
     });
     on("tfork", "onclick", function () {
@@ -7708,37 +7864,163 @@ astuces et actualités du jeu en français.</p>
       var c = { id: newListId(), pseudo: pseudo.trim(), title: (l.title || "Liste") + " (repris)",
                 tiers: JSON.parse(JSON.stringify(l.tiers || {})), at: Date.now() };
       tLists().push(c); view.tier = "L:" + c.id;
-      persist("Tiers list reprise"); render();
+      saveMine("Tiers list reprise"); render();
     });
 
     /* clic : je choisis une vignette, puis la case d'arrivée */
     document.querySelectorAll("[data-drag]").forEach(function (c) {
       c.addEventListener("click", function (e) {
         if (e.target.closest("[data-ani]")) return;
-        view.tpick = view.tpick === c.dataset.drag ? null : c.dataset.drag;
-        render();
+        if (dragMoved) return;   /* fin d'un vrai glisser : ce n'est pas un clic de sélection */
+        pickCard(c.dataset.drag);
       });
-      c.addEventListener("dragstart", function (e) {
-        e.dataTransfer.setData("text/plain", c.dataset.drag);
-        e.dataTransfer.effectAllowed = "move";
-        c.classList.add("dragging");
-      });
-      c.addEventListener("dragend", function () { c.classList.remove("dragging"); });
+      c.addEventListener("pointerdown", startPointerDrag);
     });
     document.querySelectorAll("[data-drop]").forEach(function (cell) {
-      cell.addEventListener("dragover", function (e) { e.preventDefault(); cell.classList.add("over"); });
-      cell.addEventListener("dragleave", function () { cell.classList.remove("over"); });
-      cell.addEventListener("drop", function (e) {
-        e.preventDefault(); cell.classList.remove("over");
-        var n = e.dataTransfer.getData("text/plain");
-        if (n) placeIn(n, cell.dataset.drop);
-      });
       cell.addEventListener("click", function (e) {
         if (!view.tpick || e.target.closest(".tcard")) return;
         placeIn(view.tpick, cell.dataset.drop);
       });
     });
   }
+
+  /* ---- glisser-déposer des vignettes de la Tiers List -------------------
+     Volontairement écrit avec les événements de pointeur plutôt qu'avec le
+     glisser-déposer natif HTML5 : pendant un glisser natif, le navigateur
+     confisque la molette (aucun événement wheel n'est émis et la page ne
+     défile pas), ce qui empêchait d'atteindre une bande hors de l'écran sans
+     lâcher la vignette. Ici rien n'est confisqué : on garde le clic gauche
+     enfoncé, on fait défiler à la molette, puis on relâche sur la bande visée.
+     Le fantôme suit le curseur en coordonnées écran, il reste donc sous la
+     souris pendant que la page défile. */
+  var dragName = null, dragGhost = null, dragCell = null, dragMoved = false, dragFrom = null;
+  var dragX = 0, dragY = 0;
+
+  function startPointerDrag(e) {
+    if (e.button !== 0 || e.pointerType === "touch") return;  /* tactile : on garde le tap */
+    if (e.target.closest("[data-ani]")) return;               /* le bouton « i » reste cliquable */
+    var card = e.currentTarget;
+    dragFrom = { x: e.clientX, y: e.clientY, card: card, name: card.dataset.drag,
+                 cell: card.closest("[data-drop]") };
+    dragX = e.clientX; dragY = e.clientY;
+    dragMoved = false;
+    document.addEventListener("pointermove", onPointerDragMove);
+    document.addEventListener("pointerup", endPointerDrag);
+    document.addEventListener("pointercancel", endPointerDrag);
+  }
+
+  function onPointerDragMove(e) {
+    if (!dragFrom) return;
+    if (!dragMoved) {
+      /* seuil de déclenchement : en deçà, c'est un clic de sélection et non un
+         glisser. Assez large pour absorber le tremblement naturel de la main,
+         qui sinon transformait chaque clic en glisser avorté. */
+      if (Math.abs(e.clientX - dragFrom.x) + Math.abs(e.clientY - dragFrom.y) < 14) return;
+      dragMoved = true;
+      dragName = dragFrom.name;
+      dragFrom.card.classList.add("dragging");
+      dragGhost = dragFrom.card.cloneNode(true);
+      dragGhost.className = "tcard tcghost";
+      document.body.appendChild(dragGhost);
+      document.body.classList.add("tdragging");
+      /* dès qu'on tient une vignette, le pointeur est capturé : les événements
+         continuent d'arriver même si le curseur sort de la vignette d'origine */
+      try { dragFrom.card.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+    e.preventDefault();
+    moveGhost(e.clientX, e.clientY);
+  }
+
+  function moveGhost(x, y) {
+    dragX = x; dragY = y;
+    if (dragGhost) { dragGhost.style.left = x + "px"; dragGhost.style.top = y + "px"; }
+    highlightCellAt(x, y);
+  }
+
+  /* la case survolée est recalculée à partir du point écran : elle reste donc
+     juste même quand c'est la page, et non le curseur, qui a bougé. */
+  function highlightCellAt(x, y) {
+    if (dragGhost) dragGhost.style.visibility = "hidden";
+    var el = document.elementFromPoint(x, y);
+    if (dragGhost) dragGhost.style.visibility = "";
+    var cell = el && el.closest ? el.closest("[data-drop]") : null;
+    if (cell === dragCell) return;
+    if (dragCell) dragCell.classList.remove("over");
+    dragCell = cell;
+    if (dragCell) dragCell.classList.add("over");
+  }
+
+  /* Défilement à la molette PENDANT le glisser.
+     On ne se repose pas sur le comportement par défaut du navigateur : selon
+     l'état dans lequel il se croit (bouton maintenu, sélection en cours...), il
+     lui arrive de l'ignorer. On prend donc la main — on annule son action et on
+     fait défiler nous-mêmes — ce qui rend le geste fiable partout. */
+  function onDragWheel(e) {
+    if (!dragMoved) return;
+    e.preventDefault();
+    var d = e.deltaY;
+    if (e.deltaMode === 1) d *= 16;                    /* défilement par lignes */
+    else if (e.deltaMode === 2) d *= window.innerHeight; /* par pages */
+    window.scrollBy(0, d);
+    highlightCellAt(dragX, dragY);
+  }
+
+  function endPointerDrag(e) {
+    document.removeEventListener("pointermove", onPointerDragMove);
+    document.removeEventListener("pointerup", endPointerDrag);
+    document.removeEventListener("pointercancel", endPointerDrag);
+    var cell = dragCell, name = dragName, moved = dragMoved;
+    var from = dragFrom ? dragFrom.cell : null;
+    cleanupDrag();
+    if (moved && name && e.type === "pointerup") {
+      if (cell && cell !== from) placeIn(name, cell.dataset.drop);
+      else {
+        /* Relâché sans avoir changé de bande — c'est le cas quand la main
+           tremble un peu entre l'appui et le relâchement. On ne jette pas le
+           geste : l'Aniimo reste sélectionné, comme après un clic. On peut
+           alors faire défiler tranquillement puis cliquer la bande voulue. */
+        pickCard(name);
+      }
+    }
+    /* le clic qui suit le relâchement ne doit pas rejouer la sélection */
+    if (moved) setTimeout(function () { dragMoved = false; }, 0);
+  }
+
+  function cleanupDrag() {
+    if (dragGhost && dragGhost.parentNode) dragGhost.parentNode.removeChild(dragGhost);
+    if (dragCell) dragCell.classList.remove("over");
+    if (dragFrom && dragFrom.card) dragFrom.card.classList.remove("dragging");
+    document.body.classList.remove("tdragging");
+    dragGhost = null; dragCell = null; dragName = null; dragFrom = null;
+  }
+
+  /* non passif : indispensable pour pouvoir annuler l'action par défaut */
+  document.addEventListener("wheel", onDragWheel, { passive: false });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && dragMoved) { cleanupDrag(); dragMoved = false; }
+  });
+  /* filet de sécurité : si un glisser est interrompu autrement que par un
+     relâchement propre (fenêtre qui perd le focus, glisser natif déclenché
+     malgré tout), on remet l'état à zéro pour ne pas rester bloqué avec un
+     fantôme collé au curseur et des clics qui ne répondent plus. */
+  function abortDrag() {
+    if (!dragFrom && !dragMoved) return;
+    document.removeEventListener("pointermove", onPointerDragMove);
+    document.removeEventListener("pointerup", endPointerDrag);
+    document.removeEventListener("pointercancel", endPointerDrag);
+    cleanupDrag(); dragMoved = false;
+  }
+  window.addEventListener("blur", abortDrag);
+  /* Attention : un dragstart part AUSSI de nos propres vignettes, car elles
+     contiennent une image et le navigateur tente d'en démarrer le glisser natif
+     (on l'annule plus haut). Il ne faut donc surtout pas annuler notre glisser
+     dans ce cas — c'était l'erreur : le geste mourait à l'instant même où il
+     commençait, et la molette n'avait plus rien à faire défiler. On n'annule
+     que pour un glisser natif venu d'ailleurs. */
+  document.addEventListener("dragstart", function (e) {
+    if (e.target && e.target.closest && e.target.closest("[data-drag]")) return;
+    abortDrag();
+  });
 
   function copyText(t) {
     try {
@@ -7759,7 +8041,7 @@ astuces et actualités du jeu en français.</p>
               tiers: d.x, shared: true, at: Date.now() };
     tLists().push(l);
     view.tier = "L:" + l.id; view.tab = "tiers"; view.tcreate = false; view.tfold = true;
-    persist("Tiers list partagée ouverte");
+    saveMine("Tiers list partagée ouverte");
     if (go) { render(); window.scrollTo(0, 0); }
   }
 
@@ -8389,6 +8671,9 @@ astuces et actualités du jeu en français.</p>
   });
 
   if (S.team && S.team.main) view.teamMain = S.team.main;
+  /* les Tiers List créées ici sont relues avant le premier affichage :
+     elles réapparaissent donc telles quelles après un rafraîchissement. */
+  loadMine();
   restoreView();
   /* le panneau admin est masqué du menu : #admin l'ouvre */
   function openByHash(go) {

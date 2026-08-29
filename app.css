@@ -69,6 +69,11 @@ button,input,select,textarea{font:inherit;color:inherit}
   .tab{width:auto}
 }
 
+/* Chrome « ancre » le défilement sur un élément quand le contenu change, et
+   repositionne la page de lui-même. Comme le site redessine sa vue entière à
+   chaque action et restaure lui-même la position, les deux se contredisaient et
+   la page sautait. On coupe l'ancrage : c'est notre restauration qui décide. */
+#app,.main,.tboard{overflow-anchor:none}
 .main{padding:26px 30px 70px; min-width:0}
 @media (max-width:700px){ .main{padding:18px 14px 60px} }
 .head{display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 18px; margin-bottom:6px}
@@ -856,7 +861,20 @@ table td .chip{margin:0 1px}
 
 .tcard{width:78px; display:grid; gap:3px; justify-items:center; text-align:center; align-content:start}
 .tboard.editing .tcard{cursor:grab}
-.tcard.dragging{opacity:.4}
+/* même verrou côté CSS : ni glisser natif, ni sélection de texte sur une
+   vignette, pour que seul notre glisser au pointeur s'applique. */
+.tcard[data-drag],.tcard[data-drag] *{-webkit-user-drag:none; user-select:none; -webkit-user-select:none}
+.tcard.dragging{opacity:.35}
+/* vignette fantôme qui suit le curseur pendant le glisser au pointeur.
+   Positionnée en fixed (coordonnées écran) : elle reste sous la souris
+   pendant que la page défile à la molette. */
+.tcghost{position:fixed; left:0; top:0; z-index:120; width:78px; pointer-events:none;
+  transform:translate(-50%,-50%) scale(.94); opacity:.92;
+  filter:drop-shadow(0 10px 18px rgba(0,0,0,.45))}
+.tcghost .tcinfo,.tcghost .votes{display:none}
+/* pendant le glisser : plus de sélection de texte parasite, curseur explicite */
+body.tdragging{cursor:grabbing; user-select:none; -webkit-user-select:none}
+body.tdragging .tcard{cursor:grabbing}
 .tcard.picked .tcimg{border-color:var(--gold-line); border-width:2px;
   box-shadow:0 0 0 3px color-mix(in srgb,var(--gold-line) 30%,transparent)}
 .tcimg{position:relative; width:78px; height:78px; display:grid; place-items:center;
@@ -1204,6 +1222,18 @@ td .anilink:hover .ico, .tcimg .anilink:hover .ico, .powhead .anilink:hover .ico
     0%,100%{box-shadow:0 8px 20px -12px #5865F2}
     50%{box-shadow:0 8px 24px -8px #5865F2, 0 0 16px 3px rgba(88,101,242,.5)}
   }
+}
+/* note de rythme de mise à jour + bouton Discord réunis dans un même bloc :
+   c'est le bloc qui porte le margin-top:auto (et non plus le bouton seul),
+   pour que la phrase reste collée au-dessus du bouton dans les deux mises
+   en page — barre verticale sur ordinateur, barre horizontale sur mobile. */
+.dcwrap{margin-top:auto; display:flex; flex-direction:column}
+.dcwrap .dcbtn{margin-top:0}
+.railupd{margin:0 0 8px; padding:0 6px; font-size:11px; line-height:1.4;
+  color:var(--muted); text-align:center}
+@media (max-width:1000px){
+  .dcwrap{margin-top:14px; margin-left:auto; max-width:100%}
+  .railupd{text-align:right; padding:0 2px}
 }
 .dcico{flex:none; width:34px; height:34px; display:grid; place-items:center; border-radius:9px;
   background:#fff; color:#5865F2}
