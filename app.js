@@ -988,9 +988,34 @@
     Object.keys(v).forEach(function (n) { out.push((v[n] === "ok" ? "+" : "-") + n); });
     return out.length ? tEnc({ l: l.id, t: l.title || "", v: out }) : "";
   }
+  /* Compte des avis sur une liste de joueur, tous visiteurs confondus.
+     Les totaux viennent du serveur : ils sont donc publics par nature. */
+  function listVoteTotals(l) {
+    var ok = 0, no = 0, n = 0;
+    var live = LIVE.lists && LIVE.lists.filter(function (x) { return x.id === (l || {}).id; })[0];
+    var v = ((live || l || {}).votes) || {};
+    Object.keys(v).forEach(function (name) {
+      var t = v[name] || {};
+      if (!t.ok && !t.no) return;
+      ok += t.ok || 0; no += t.no || 0; n++;
+    });
+    return { ok: ok, no: no, n: n };
+  }
+
   /* la barre de vote posée sur une vignette d'une liste de joueur */
   function listVoteBar(l, a) {
-    if (!view.tvote || !l) return "";
+    if (!l) return "";
+    var t0 = listTally(l, a.name);
+    if (!view.tvote) {
+      /* Hors du mode vote, les compteurs restent affichés pour TOUT LE MONDE,
+         simplement en lecture seule : c'est ce qui rend l'avis de la communauté
+         visible sans avoir à ouvrir le vote. Rien n'apparaît tant que personne
+         n'a voté, pour ne pas couvrir les vignettes de zéros. */
+      if (!t0.ok && !t0.no) return "";
+      return '<div class="votes lv ro" title="Avis de la communauté sur ce palier">' +
+        '<span class="vbtn up">✓<i>' + t0.ok + "</i></span>" +
+        '<span class="vbtn down">✗<i>' + t0.no + "</i></span></div>";
+    }
     var mine = myListVote(l.id, a.name), t = listTally(l, a.name);
     return '<div class="votes lv">' +
       '<button type="button" class="vbtn up' + (mine === "ok" ? " on" : "") +
@@ -1360,6 +1385,16 @@
       h += '<p class="tiercrit">Liste de <b>' + esc(list.pseudo || "anonyme") + "</b>" +
         (list.shared ? " — ouverte depuis un lien partagé" : " — glisse les vignettes d'une bande à l'autre, ou clique une vignette puis une case") +
         ".</p>";
+      /* récapitulatif public des avis, lisible sans entrer dans le mode vote */
+      var vt = listVoteTotals(list);
+      h += '<p class="tiercrit lvsum">' + (vt.ok + vt.no
+        ? "Avis de la communauté : <b class=\"vok\">" + vt.ok + " ✓</b> · " +
+          "<b class=\"vno\">" + vt.no + " ✗</b> sur " + vt.n +
+          " Aniimo" + (vt.n > 1 ? "s" : "") +
+          ". Les compteurs sous chaque vignette sont visibles par tous ; " +
+          "clique sur « Vote » pour donner le tien."
+        : "Personne n'a encore donné son avis sur cette liste — clique sur « Vote » pour être le premier.") +
+        "</p>";
     } else {
       h += '<p class="tiercrit">' + (role === "ALL"
         ? "Tous rôles confondus : chaque Aniimo est noté sur les critères de <b>son propre rôle</b>, puis tout est fusionné en un seul classement. Un soigneur excellent peut donc devancer un DPS moyen."

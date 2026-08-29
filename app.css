@@ -1968,6 +1968,11 @@ table.tight .ico{min-width:34px}
 .btn.vote:hover{background:color-mix(in srgb,#E8702A 14%,transparent); border-color:#E8702A}
 .btn.vote.on{background:#E8702A; border-color:transparent; color:#fff; font-weight:600}
 .votes.lv .vbtn{font-size:10px; padding:3px 7px}
+/* compteurs en lecture seule : mêmes pastilles, mais rien de cliquable */
+.votes.lv.ro .vbtn{cursor:default; opacity:.9}
+.votes.lv.ro .vbtn.up{border-color:color-mix(in srgb,#3FA45B 45%,transparent); color:#3FA45B}
+.votes.lv.ro .vbtn.down{border-color:color-mix(in srgb,#D2453F 45%,transparent); color:#D2453F}
+.lvsum .vok{color:#3FA45B} .lvsum .vno{color:#D2453F}
 .votebox.lvbox{border-left-color:#E8702A}
 .lvbox .actions{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
 
