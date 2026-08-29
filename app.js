@@ -2893,20 +2893,24 @@
      rattache un style à chaque rubrique du site. */
   /* les cinq animations d'écriture et les cinq encadrements disponibles */
   var TEXT_FX = [
-    ["shine",  "Reflet balayant",  "un éclat glisse sur les lettres"],
-    ["pulse",  "Halo qui respire", "le nom s'éclaire et s'éteint doucement"],
-    ["wave",   "Vague",            "les lettres montent et descendent l'une après l'autre"],
-    ["glitch", "Glitch",           "un décalage chromatique bref, par à-coups"],
-    ["neon",   "Néon",             "un contour lumineux qui vibre légèrement"],
-    ["none",   "Aucun",            "texte fixe"]
+    ["shine",   "Reflet balayant",  "un éclat glisse sur les lettres"],
+    ["pulse",   "Halo qui respire", "le nom s'éclaire et s'éteint doucement"],
+    ["wave",    "Vague",            "les lettres montent et descendent l'une après l'autre"],
+    ["glitch",  "Glitch",           "un décalage chromatique bref, par à-coups"],
+    ["neon",    "Néon",             "un contour lumineux qui vibre légèrement"],
+    ["rainbow", "Arc-en-ciel",      "un dégradé multicolore défile sur les lettres"],
+    ["type",    "Machine à écrire", "les lettres apparaissent une à une, curseur clignotant"],
+    ["none",    "Aucun",            "texte fixe"]
   ];
   var FRAME_FX = [
-    ["gold",    "Liseré tournant", "un dégradé fait le tour du cadre"],
-    ["dashed",  "Pointillés",      "des tirets défilent le long du bord"],
-    ["corners", "Équerres",        "quatre coins marqués, pas de cadre complet"],
-    ["glow",    "Halo",            "une lueur diffuse qui respire"],
-    ["double",  "Double filet",    "deux traits fins, sobre et net"],
-    ["none",    "Aucun",           "bord simple"]
+    ["gold",     "Liseré tournant", "un dégradé fait le tour du cadre"],
+    ["dashed",   "Pointillés",      "des tirets défilent le long du bord"],
+    ["corners",  "Équerres",        "quatre coins marqués, pas de cadre complet"],
+    ["glow",     "Halo",            "une lueur diffuse qui respire"],
+    ["double",   "Double filet",    "deux traits fins, sobre et net"],
+    ["sweep",    "Balayage",        "un point lumineux unique parcourt le contour"],
+    ["confetti", "Confettis",       "quatre pastilles de couleur clignotent aux coins"],
+    ["none",     "Aucun",           "bord simple"]
   ];
   var STYLE_BUILTIN = [
     { key: "rb",    name: "Rouge et bleu",   spRed: "#FF4B57", spBlue: "#4FA8FF",
@@ -3024,17 +3028,21 @@
         '<label class="f wide"><span>Vitesse : <b class="stv">' + c.speed + '</b> s</span>' +
         '<input type="range" data-sf="speed" min="0.8" max="4" step="0.1" value="' + c.speed + '"></label>' +
         "</div>" +
-        '<div class="strow">' +
-        '<label class="f wide"><span>Effet d\'écriture</span><select data-sf="fx">' +
+        '<div class="stfxrow">' +
+        '<div class="stfxbox fxtype-writing"><span class="stfxlabel">Effet d\'écriture</span>' +
+        '<p class="stfxhint">anime le nom de la rubrique</p>' +
+        '<select data-sf="fx">' +
         TEXT_FX.map(function (f) {
           return '<option value="' + f[0] + '"' + (f[0] === c.fx ? " selected" : "") +
             ' title="' + esc(f[2]) + '">' + esc(f[1]) + "</option>";
-        }).join("") + "</select></label>" +
-        '<label class="f wide"><span>Encadrement</span><select data-sf="frame">' +
+        }).join("") + "</select></div>" +
+        '<div class="stfxbox fxtype-frame"><span class="stfxlabel">Encadrement</span>' +
+        '<p class="stfxhint">habille les encadrés dorés</p>' +
+        '<select data-sf="frame">' +
         FRAME_FX.map(function (f) {
           return '<option value="' + f[0] + '"' + (f[0] === c.frame ? " selected" : "") +
             ' title="' + esc(f[2]) + '">' + esc(f[1]) + "</option>";
-        }).join("") + "</select></label>" +
+        }).join("") + "</select></div>" +
         "</div>" +
         stylePreview(c, "stp" + i) + "</div>";
     });
@@ -4663,12 +4671,53 @@
       '<span class="devdate">' + esc(d.date) + '</span></div>' +
       '<div class="patchlist">' + d.changes.map(patchItem).join("") + '</div>';
   }
+  /* compte à rebours avant l'ouverture, calé en position absolue à gauche de
+     l'encadré d'avertissement : totalement indépendant du reste de la mise en
+     page (ne pousse ni ne décale rien), masqué sur les écrans trop étroits
+     pour lui laisser de la place sans chevaucher quoi que ce soit. */
+  function launchTimerBox() {
+    return '<div class="launchtimer" aria-live="off">' +
+      '<span class="ltlabel">Ouverture d\'Aniimo</span>' +
+      '<div class="ltnums">' +
+      '<div class="ltcell"><b data-lt="d">--</b><span>Jours</span></div>' +
+      '<div class="ltcell"><b data-lt="h">--</b><span>Heures</span></div>' +
+      '<div class="ltcell"><b data-lt="m">--</b><span>Min</span></div>' +
+      '<div class="ltcell"><b data-lt="s">--</b><span>Sec</span></div>' +
+      "</div></div>";
+  }
+  var LAUNCH_AT = new Date(2026, 8, 16, 4, 0, 0).getTime();
+  var launchTimerIv = null;
+  function bindLaunchTimer() {
+    if (launchTimerIv) { clearInterval(launchTimerIv); launchTimerIv = null; }
+    var box = document.querySelector(".launchtimer");
+    if (!box) return;
+    var dEl = box.querySelector('[data-lt="d"]'), hEl = box.querySelector('[data-lt="h"]'),
+      mEl = box.querySelector('[data-lt="m"]'), sEl = box.querySelector('[data-lt="s"]');
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    function tick() {
+      var diff = LAUNCH_AT - Date.now();
+      if (diff <= 0) {
+        dEl.textContent = hEl.textContent = mEl.textContent = sEl.textContent = "00";
+        if (launchTimerIv) { clearInterval(launchTimerIv); launchTimerIv = null; }
+        return;
+      }
+      var s = Math.floor(diff / 1000);
+      var d = Math.floor(s / 86400); s -= d * 86400;
+      var h = Math.floor(s / 3600); s -= h * 3600;
+      var m = Math.floor(s / 60); s -= m * 60;
+      dEl.textContent = String(d);
+      hEl.textContent = pad(h); mEl.textContent = pad(m); sEl.textContent = pad(s);
+    }
+    tick();
+    launchTimerIv = setInterval(tick, 1000);
+  }
   function homePanel() {
     var list = devList();
     var idx = list[view.devOpen] ? view.devOpen : 0;
     var cur = list[idx];
     var mascot = (S.devblog || {}).mascot;
     return '<div class="homewrap">' +
+      launchTimerBox() +
       '<div class="homewarn' + (homeWarnHalo() ? "" : " nohalo") + '" style="--wc:' + esc(homeWarnColor()) + '">' +
       esc(homeWarn()) + '</div>' +
       '<div class="elemtitlewrap">' + skHead("Journal des mises à jour") + '</div>' +
@@ -4796,6 +4845,8 @@
     applyProtect();
     saveView();
     if (t.kind === "tier") window.scrollTo(0, sy); else window.scrollTo(0, 0);
+    if (t.kind === "home") bindLaunchTimer();
+    else if (launchTimerIv) { clearInterval(launchTimerIv); launchTimerIv = null; }
     if (t.kind === "admin" && adminLocked()) return;
     if (t.kind === "admin" && view.adminSec === "aniimo" && view.pick) { fillForm(); bindSkillIcons(); }
     if (t.kind === "admin" && view.adminSec === "skico") bindSkillIcons();
