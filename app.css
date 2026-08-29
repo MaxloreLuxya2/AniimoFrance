@@ -130,6 +130,12 @@ td.num{text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-num
   background-size:250% 100%; color:#1a1408; font-weight:700; animation:legendshift 5s linear infinite}
 @keyframes legendshift{0%{background-position:0% 0}100%{background-position:250% 0}}
 @media (prefers-reduced-motion: reduce){.chip.legendary{animation:none}}
+/* variante turquoise, réservée aux Starters (Helion, Fennelun) */
+.chip.starter{
+  background:linear-gradient(110deg,#0FA99B 0%,#0FA99B 36%,#B6FFF6 50%,#0FA99B 64%,#0FA99B 100%);
+  background-size:280% 100%; color:#04302B; font-weight:700; animation:legendshift 2.6s linear infinite;
+  box-shadow:0 0 7px 0 rgba(45,217,203,.55), inset 0 0 5px rgba(255,255,255,.35)}
+@media (prefers-reduced-motion: reduce){.chip.starter{animation:none}}
 .legendname{
   position:relative; display:inline-block; padding:0 3px;
   background:linear-gradient(90deg,#FF5A5A,#FFB03A,#FFE84D,#5FE07A,#4DB8FF,#9B6DFF,#FF5AC8,#FF5A5A);
@@ -152,6 +158,28 @@ td.num{text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-num
   .legendname .sp5{animation:twinkle 2.1s ease-in-out infinite .95s}
 }
 @media (prefers-reduced-motion: reduce){.legendname{animation:none; background:none; -webkit-text-fill-color:var(--ink); color:var(--ink)} .legendname .sp{display:none}}
+/* même traitement que .legendname, en turquoise, pour les Starters (Helion, Fennelun) */
+.startername{
+  position:relative; display:inline-block; padding:0 3px;
+  background:linear-gradient(90deg,#0B8C80,#0FA99B,#5FE8D8,#B6FFF6,#5FE8D8,#0FA99B,#0B8C80);
+  background-size:250% 100%; -webkit-background-clip:text; background-clip:text; color:transparent;
+  animation:legendshift 5s linear infinite}
+.startername .sp{position:absolute; opacity:0; pointer-events:none; color:#DFFFFA;
+  filter:drop-shadow(0 0 4px #7CF5E8) drop-shadow(0 0 7px #2DD9CB)}
+.startername .sp svg{width:100%; height:100%; display:block; fill:currentColor}
+.startername .sp1{left:-4%; top:-22%; width:8px; height:8px}
+.startername .sp2{left:30%; top:48%;  width:6px; height:6px}
+.startername .sp3{left:56%; top:-26%; width:9px; height:9px}
+.startername .sp4{left:80%; top:46%;  width:6px; height:6px}
+.startername .sp5{left:98%; top:-14%; width:7px; height:7px}
+@media (prefers-reduced-motion:no-preference){
+  .startername .sp1{animation:twinkle 2.1s ease-in-out infinite .1s}
+  .startername .sp2{animation:twinkle 2.1s ease-in-out infinite .35s}
+  .startername .sp3{animation:twinkle 2.1s ease-in-out infinite .55s}
+  .startername .sp4{animation:twinkle 2.1s ease-in-out infinite .75s}
+  .startername .sp5{animation:twinkle 2.1s ease-in-out infinite .95s}
+}
+@media (prefers-reduced-motion: reduce){.startername{animation:none; background:none; -webkit-text-fill-color:var(--ink); color:var(--ink)} .startername .sp{display:none}}
 .jobchip{display:inline-flex; align-items:center; gap:4px}
 
 .bar{position:relative; height:6px; border-radius:3px; background:var(--bar-bg); min-width:54px}
@@ -164,6 +192,7 @@ td.num{text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-num
 
 /* ---------- cards ---------- */
 .grid{display:grid; gap:14px}
+.grid.top{align-items:start}
 .card{background:var(--surface); border:1px solid var(--line); border-radius:12px;
   padding:16px 18px; box-shadow:var(--shadow)}
 .card h3{font-size:15.5px; margin-bottom:6px}
@@ -175,6 +204,27 @@ td.num{text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-num
 .kv{display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:13px}
 .kv dt{color:var(--muted)}
 .kv dd{margin:0}
+
+.joblevels{display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 2px}
+.joblv{display:flex; align-items:baseline; gap:5px; padding:4px 9px; border-radius:8px;
+  background:var(--surface-2); font-size:11px; color:var(--muted)}
+.joblv b{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-2)}
+.joblv.cur{background:color-mix(in srgb, var(--accent) 16%, var(--surface-2)); color:var(--ink)}
+.joblv.cur b{color:var(--ink)}
+
+.jobsep{border:0; border-top:1px solid var(--line); margin:12px 0 10px}
+.jobroster{display:flex; flex-wrap:wrap; gap:6px}
+.jobmini .anilink{display:flex; flex-direction:column; align-items:center; gap:5px;
+  width:74px; background:none; border:0; cursor:pointer; padding:5px 3px; border-radius:8px; text-align:center}
+.jobmini .anilink:hover{background:var(--surface-2)}
+.jobmini .anilink b{font-size:10.5px; font-weight:500; line-height:1.15; color:var(--ink-2);
+  word-break:break-word; max-width:70px}
+/* icône carrée d'Aniimo (page Métiers) : artwork officiel sur fond coloré par élément.
+   object-fit:cover pour que le personnage remplisse tout le cadre (pas de contain qui le
+   rétrécit avec des marges, surtout sur les artworks au format portrait). */
+.jico{display:inline-flex; align-items:center; justify-content:center; flex:none;
+  border-radius:12px; overflow:hidden}
+.jico img{width:100%; height:100%; object-fit:cover; object-position:center 30%; display:block}
 
 .steps{list-style:none; margin:0; padding:0; display:grid; gap:8px; counter-reset:s}
 .steps li{display:grid; grid-template-columns:30px 116px 1fr; gap:12px; align-items:center;
@@ -246,6 +296,9 @@ table.tight td{padding:3px 7px}
 table.tight .chip.sm{font-size:10px;padding:1px 6px}
 table.tight .ico{width:40px;height:40px}
 table.tight td.sk{font-size:12px; max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+/* « Tous les Aniimos » : icônes carrées (au lieu du rond global) et légèrement agrandies */
+table.roster img.ico{border-radius:9px}
+table.roster .ico{width:46px; height:46px}
 .bar{min-width:40px}
 .barcell b{min-width:26px; font-size:12px}
 img.ico{border-radius:50%; object-fit:cover; background:var(--surface-2)}
@@ -561,6 +614,121 @@ table td .chip{margin:0 1px}
     to{opacity:1;transform:perspective(700px) rotateX(0)}}
   @keyframes fxBlur{from{opacity:0;filter:blur(9px)}to{opacity:1;filter:blur(0)}}
   @keyframes fxSweep{from{opacity:0;clip-path:inset(0 100% 0 0)}to{opacity:1;clip-path:inset(0 0 0 0)}}
+
+  .fx-zoom .fxi{animation-name:fxZoom}
+  .fx-bounce .fxi{animation-name:fxBounce; animation-timing-function:cubic-bezier(.3,1.4,.4,1)}
+  .fx-spin .fxi{animation-name:fxSpin}
+  .fx-elastic .fxi{animation-name:fxElastic; animation-timing-function:cubic-bezier(.3,1.5,.4,1)}
+  .fx-wave .fxi{animation-name:fxWave}
+  .fx-shard .fxi{animation-name:fxShard}
+  .fx-depth .fxi{animation-name:fxDepth}
+  .fx-spring .fxi{animation-name:fxSpring; animation-timing-function:cubic-bezier(.3,1.35,.4,1)}
+  .fx-dust .fxi{animation-name:fxDust}
+
+  @keyframes fxZoom{from{opacity:0;transform:scale(1.35)}to{opacity:1;transform:none}}
+  @keyframes fxBounce{
+    0%{opacity:0;transform:translateY(-42px)}
+    55%{opacity:1;transform:translateY(8px)}
+    75%{transform:translateY(-4px)}
+    100%{opacity:1;transform:none}
+  }
+  @keyframes fxSpin{from{opacity:0;transform:rotate(-18deg) scale(.85)}to{opacity:1;transform:none}}
+  @keyframes fxElastic{
+    0%{opacity:0;transform:scaleX(.6) scaleY(1.3)}
+    50%{opacity:1;transform:scaleX(1.08) scaleY(.94)}
+    75%{transform:scaleX(.97) scaleY(1.02)}
+    100%{transform:none}
+  }
+  @keyframes fxWave{
+    0%{opacity:0;transform:translateY(30px) rotate(3deg)}
+    60%{opacity:1;transform:translateY(-6px) rotate(-1deg)}
+    100%{opacity:1;transform:none}
+  }
+  @keyframes fxShard{from{opacity:0;transform:translate(34px,-24px) rotate(10deg) skewX(-8deg); filter:brightness(1.6)}
+    to{opacity:1;transform:none; filter:none}}
+  @keyframes fxDepth{from{opacity:0;transform:scale(.62)}to{opacity:1;transform:none}}
+  @keyframes fxSpring{
+    0%{opacity:0;transform:perspective(700px) rotateY(48deg)}
+    60%{opacity:1;transform:perspective(700px) rotateY(-8deg)}
+    100%{opacity:1;transform:perspective(700px) rotateY(0)}
+  }
+  @keyframes fxDust{from{opacity:0;filter:blur(5px);transform:translateY(14px) scale(1.04)}to{opacity:1;filter:blur(0);transform:none}}
+}
+
+/* ---------- version téléphone : effets de Titres et de catégorie légèrement réduits ---------- */
+@media (max-width:700px) and (prefers-reduced-motion:no-preference){
+  .skhead .sp{filter:drop-shadow(0 0 3px var(--head-glint)) drop-shadow(0 0 6px var(--head-glint))}
+  @keyframes headshine{ 0%,18%{background-position:135% 0} 100%{background-position:-40% 0} }
+  @keyframes twinkle{
+    0%,14%{opacity:0; transform:scale(.2) rotate(0deg)}
+    30%{opacity:.75; transform:scale(.9) rotate(24deg)}
+    46%{opacity:0; transform:scale(.2) rotate(48deg)}
+    100%{opacity:0; transform:scale(.2) rotate(48deg)}
+  }
+
+  .spd-slow{--dur:.56s; --gap:36ms}
+  .spd-mid{--dur:.34s; --gap:22ms}
+  .spd-fast{--dur:.22s; --gap:12ms}
+
+  @keyframes fxSlideL{from{opacity:0;transform:translateX(-22px)}to{opacity:1;transform:none}}
+  @keyframes fxSlideR{from{opacity:0;transform:translateX(22px)}to{opacity:1;transform:none}}
+  @keyframes fxUp{from{opacity:0;transform:translateY(13px)}to{opacity:1;transform:none}}
+  @keyframes fxClatter{
+    0%{opacity:0;transform:translateY(11px) scale(.96) rotate(-1deg)}
+    62%{opacity:1;transform:translateY(-2px) scale(1.01) rotate(.6deg)}
+    82%{transform:translateY(.5px) scale(.998) rotate(-.25deg)}
+    100%{opacity:1;transform:none}
+  }
+  @keyframes fxClatter2{
+    0%{opacity:0;transform:translateY(11px) scale(.96) rotate(1deg)}
+    62%{opacity:1;transform:translateY(-2px) scale(1.01) rotate(-.6deg)}
+    82%{transform:translateY(.5px) scale(.998) rotate(.25deg)}
+    100%{opacity:1;transform:none}
+  }
+  @keyframes fxEmbrase{
+    0%{opacity:0; transform:scale(.98);
+       filter:brightness(1.4) saturate(1.3);
+       box-shadow:0 0 16px 5px var(--glow,#E8703A), inset 0 0 10px 1px var(--glow,#E8703A)}
+    38%{opacity:1; transform:scale(1.005);
+       filter:brightness(1.15) saturate(1.1);
+       box-shadow:0 0 12px 2px var(--glow,#E8703A), inset 0 0 6px 0 var(--glow,#E8703A)}
+    72%{transform:scale(.999); filter:brightness(1.03) saturate(1.02);
+       box-shadow:0 0 6px 1px var(--glow,#E8703A), inset 0 0 0 0 transparent}
+    100%{opacity:1; transform:none; filter:none; box-shadow:var(--shadow)}
+  }
+  @keyframes fxPop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
+  @keyframes fxFlip{from{opacity:0;transform:perspective(700px) rotateX(-28deg)}
+    to{opacity:1;transform:perspective(700px) rotateX(0)}}
+  @keyframes fxBlur{from{opacity:0;filter:blur(4px)}to{opacity:1;filter:blur(0)}}
+
+  @keyframes fxZoom{from{opacity:0;transform:scale(1.14)}to{opacity:1;transform:none}}
+  @keyframes fxBounce{
+    0%{opacity:0;transform:translateY(-18px)}
+    55%{opacity:1;transform:translateY(4px)}
+    75%{transform:translateY(-2px)}
+    100%{opacity:1;transform:none}
+  }
+  @keyframes fxSpin{from{opacity:0;transform:rotate(-8deg) scale(.92)}to{opacity:1;transform:none}}
+  @keyframes fxElastic{
+    0%{opacity:0;transform:scaleX(.82) scaleY(1.13)}
+    50%{opacity:1;transform:scaleX(1.03) scaleY(.98)}
+    75%{transform:scaleX(.99) scaleY(1.01)}
+    100%{transform:none}
+  }
+  @keyframes fxWave{
+    0%{opacity:0;transform:translateY(15px) rotate(1.5deg)}
+    60%{opacity:1;transform:translateY(-3px) rotate(-.5deg)}
+    100%{opacity:1;transform:none}
+  }
+  @keyframes fxShard{from{opacity:0;transform:translate(15px,-11px) rotate(4deg) skewX(-3deg); filter:brightness(1.25)}
+    to{opacity:1;transform:none; filter:none}}
+  @keyframes fxDepth{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:none}}
+  @keyframes fxSpring{
+    0%{opacity:0;transform:perspective(700px) rotateY(22deg)}
+    60%{opacity:1;transform:perspective(700px) rotateY(-3deg)}
+    100%{opacity:1;transform:perspective(700px) rotateY(0)}
+  }
+  @keyframes fxDust{from{opacity:0;filter:blur(2px);transform:translateY(6px) scale(1.02)}to{opacity:1;filter:blur(0);transform:none}}
 }
 
 /* catalogue d'effets dans l'admin */
@@ -790,6 +958,14 @@ td .anilink:hover .ico, .tcimg .anilink:hover .ico, .powhead .anilink:hover .ico
   .dlg{animation:dlgIn .22s cubic-bezier(.2,1.2,.4,1) both}
   @keyframes dlgIn{from{opacity:0;transform:translateY(14px) scale(.97)}
     to{opacity:1;transform:none}}
+  /* ouverture d'une fiche Aniimo : effet "Profondeur", ralenti par rapport
+     aux autres effets d'arrivée ; la fermeture rejoue le même effet à l'envers.
+     fxDepthOut est une keyframe distincte (et non animation-direction:reverse
+     sur fxDepth) car changer uniquement la direction sans changer le nom de
+     l'animation ne relance pas fiablement une animation déjà terminée. */
+  .dlg.detailin{animation:fxDepth .75s cubic-bezier(.22,.9,.3,1) both}
+  .dlg.detailout{animation:fxDepthOut .6s cubic-bezier(.22,.9,.3,1) both}
+  @keyframes fxDepthOut{from{opacity:1;transform:none}to{opacity:0;transform:scale(.62)}}
 }
 
 /* ---------- volet de droite : les équipes de l'Aniimo ---------- */
@@ -799,6 +975,10 @@ td .anilink:hover .ico, .tcimg .anilink:hover .ico, .powhead .anilink:hover .ico
 @media (prefers-reduced-motion:no-preference){
   .dlgside{animation:dsIn .28s cubic-bezier(.2,1,.4,1) .06s both}
   @keyframes dsIn{from{opacity:0;transform:translateX(-16px)} to{opacity:1;transform:none}}
+  /* volet d'équipes : arrivée "depuis la gauche", et sortie avec le même
+     effet "Profondeur" inversé que la fiche Aniimo à sa fermeture. */
+  .dlgside.detailin{animation:fxSlideL .55s cubic-bezier(.22,.9,.3,1) both}
+  .dlgside.detailout{animation:fxDepthOut .6s cubic-bezier(.22,.9,.3,1) both}
 }
 .dsh{padding:14px 16px 12px; border-bottom:1px solid var(--line);
   background:linear-gradient(color-mix(in srgb,var(--gold-line) 10%,transparent),transparent);
@@ -944,36 +1124,9 @@ td .anilink:hover .ico, .tcimg .anilink:hover .ico, .powhead .anilink:hover .ico
 /* ---------- Team : équipes conseillées par élément ---------- */
 .etsec{display:grid; justify-items:stretch; gap:9px; margin-top:20px}
 .etlead{margin:0; max-width:76ch; text-align:center; font-size:12.5px; color:var(--muted); line-height:1.55}
-/* corps de la section : le texte/encadré s'empilent au centre, l'encadré des contres
-   flotte tout à droite en position absolue pour ne gêner aucun des autres blocs */
-.etbody{display:grid; justify-items:stretch; align-content:start; gap:9px;
-  position:relative; min-height:340px; padding-right:430px}
-/* plus l'écran est large, plus on peut resserrer la réserve de droite et
-   décaler le bloc de texte vers la droite, sans jamais chevaucher l'encadré */
-@media (min-width:1400px){ .etbody{padding-right:390px} }
-@media (min-width:1550px){ .etbody{padding-right:260px} }
+.etbody{display:grid; justify-items:stretch; align-content:start; gap:9px}
 .etbody .etlead{margin:0 auto}
-.etchart{position:absolute; top:0; right:0; width:400px; max-width:100%;
-  border:2px solid var(--gold-line); border-radius:13px;
-  background:var(--surface-2); padding:12px 16px 13px;
-  box-shadow:0 0 0 1px color-mix(in srgb,var(--gold-line) 55%,transparent),
-    0 0 18px -3px color-mix(in srgb,var(--gold-line) 70%,transparent)}
-.etchart h4{margin:0 0 8px; font-size:10.5px; letter-spacing:.09em; text-transform:uppercase;
-  color:var(--gold-line); font-weight:700}
-.etghead{display:grid; grid-template-columns:76px 20px 1fr; column-gap:8px; align-items:end;
-  padding:0 0 5px; font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted)}
-.etghead span:last-child{padding-left:11px; border-left:1px solid var(--line)}
-.etcrow{display:grid; grid-template-columns:76px 20px 1fr; column-gap:8px; align-items:center;
-  padding:5px 0; font-size:10px}
-.etcrow + .etcrow{border-top:1px solid var(--line)}
-.etcrow .chip.el{font-size:9.5px; padding:1px 6px}
-.etarrow{text-align:center; color:var(--gold-line); font-size:13px; font-weight:700; line-height:1}
-.etcloses{display:flex; flex-wrap:wrap; gap:4px; padding-left:11px; border-left:1px solid var(--line)}
 .etcempty{color:var(--muted)}
-@media (max-width:1000px){
-  .etbody{min-height:0; padding-right:0}
-  .etchart{position:static; width:100%; max-width:400px; margin:0 auto 18px}
-}
 /* le plateau : un grand rectangle qui tient toutes les équipes */
 .etboard{width:100%; border:1px solid var(--line); border-radius:16px; background:var(--surface-2);
   box-shadow:var(--shadow); padding:14px; margin-top:6px}
@@ -1042,6 +1195,16 @@ td .anilink:hover .ico, .tcimg .anilink:hover .ico, .powhead .anilink:hover .ico
   padding:9px 11px; border-radius:12px; background:#5865F2; color:#fff;
   box-shadow:0 8px 20px -12px #5865F2; transition:transform .15s ease, filter .15s ease}
 .dcbtn:hover{transform:translateY(-1px); filter:brightness(1.09)}
+/* légère respiration continue, pour attirer l'œil sans être criarde ;
+   coupée au survol pour laisser la main au petit effet de lift ci-dessus. */
+@media (prefers-reduced-motion:no-preference){
+  .dcbtn{animation:dcBreathe 2.6s ease-in-out infinite}
+  .dcbtn:hover{animation-play-state:paused}
+  @keyframes dcBreathe{
+    0%,100%{box-shadow:0 8px 20px -12px #5865F2}
+    50%{box-shadow:0 8px 24px -8px #5865F2, 0 0 16px 3px rgba(88,101,242,.5)}
+  }
+}
 .dcico{flex:none; width:34px; height:34px; display:grid; place-items:center; border-radius:9px;
   background:#fff; color:#5865F2}
 .dcico svg{width:22px; height:22px; display:block}
@@ -1247,6 +1410,7 @@ table.tight .w-ico,table.tight td:has(> .anilink > img.ico){min-width:46px}
 table.tight .ico{min-width:34px}
 @media (max-width:700px){
   table.tight .ico{width:32px; height:32px; min-width:32px}
+  table.roster .ico{width:38px; height:38px; min-width:38px}
   .w-ico{width:40px}
 }
 /* une table trop dense garde son défilement propre plutôt que d'écraser */
@@ -1871,6 +2035,36 @@ table.tight .ico{min-width:34px}
 .itmcard.prismatique .itmrare{background:linear-gradient(90deg,var(--pm1,#FF6EC7),var(--pm2,#35E6D8),var(--pm3,#FFFFFF)); -webkit-background-clip:text; background-clip:text; color:transparent}
 
 @media (max-width:1180px){.itmgrid{grid-template-columns:repeat(4,1fr)}}
+
+/* ---------- Informations > Œufs : paliers de garantie ---------- */
+.eggtiergrid{display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-top:22px}
+.eggtiercard{position:relative; isolation:isolate; overflow:hidden; border-radius:15px;
+  padding:18px 16px 16px; text-align:left;
+  background:linear-gradient(165deg, color-mix(in srgb,var(--rc) 18%,var(--surface)), var(--surface) 78%);
+  box-shadow:0 10px 24px -12px rgba(0,0,0,.55);
+  transition:transform .22s ease, box-shadow .22s ease}
+.eggtiercard::after{content:""; position:absolute; top:-35%; left:-15%; width:75%; height:75%;
+  background:radial-gradient(circle, color-mix(in srgb,var(--rc) 55%,transparent), transparent 70%);
+  filter:blur(16px); pointer-events:none; z-index:0; opacity:.55}
+.eggtiercard::before{content:""; position:absolute; inset:0; border-radius:inherit; padding:1.6px;
+  background:linear-gradient(160deg, var(--rc), color-mix(in srgb,var(--rc) 25%,transparent) 65%, var(--rc));
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite:exclude; pointer-events:none; z-index:1;
+  box-shadow:0 0 14px -2px var(--rc); transition:box-shadow .22s ease}
+.eggtiercard:hover{transform:translateY(-5px) scale(1.035);
+  box-shadow:0 18px 34px -14px rgba(0,0,0,.65), 0 0 24px -6px var(--rc)}
+.eggtiercard:hover::before{box-shadow:0 0 20px 0px var(--rc)}
+.eggtiername{position:relative; z-index:2; display:block; font-size:14.5px; font-weight:800; color:var(--ink)}
+.eggtierdesc{position:relative; z-index:2; font-size:11.5px; line-height:1.55; color:var(--ink-2); margin:8px 0 12px}
+.eggtiertag{position:relative; z-index:2; display:block; font-size:9.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+  color:color-mix(in srgb,var(--rc) 70%,var(--ink-2))}
+.eggtiercard.prismatique::before{background:linear-gradient(150deg, var(--pm1,#FF6EC7), var(--pm2,#35E6D8) 33%, var(--pm3,#FFFFFF) 55%, var(--pm2,#35E6D8) 75%, var(--pm1,#FF6EC7))}
+.eggtiercard.prismatique::after{background:radial-gradient(circle, color-mix(in srgb,var(--pm1,#FF6EC7) 55%,transparent), color-mix(in srgb,var(--pm2,#35E6D8) 40%,transparent) 55%, transparent 75%)}
+.eggtiercard.prismatique:hover::before{box-shadow:0 0 22px 1px color-mix(in srgb,var(--pm1,#FF6EC7) 75%,transparent), 0 0 22px 1px color-mix(in srgb,var(--pm2,#35E6D8) 60%,transparent)}
+.eggtiercard.prismatique:hover{box-shadow:0 18px 34px -14px rgba(0,0,0,.65), 0 0 20px -4px color-mix(in srgb,var(--pm1,#FF6EC7) 70%,transparent), 0 0 26px -4px color-mix(in srgb,var(--pm2,#35E6D8) 55%,transparent)}
+.eggtiercard.prismatique .eggtiername{background:linear-gradient(90deg,var(--pm1,#FF6EC7),var(--pm2,#35E6D8),var(--pm3,#FFFFFF)); -webkit-background-clip:text; background-clip:text; color:transparent}
+@media (max-width:1180px){.eggtiergrid{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:860px){.itmgrid{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:640px){.itmgrid{grid-template-columns:repeat(2,1fr); gap:12px}}
 @media (max-width:420px){.itmgrid{grid-template-columns:1fr}}
@@ -1879,18 +2073,34 @@ table.tight .ico{min-width:34px}
 .devadminhead{display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap; margin-bottom:12px}
 
 /* ---------- Accueil ---------- */
+@property --ang{syntax:'<angle>'; initial-value:0deg; inherits:false}
 .homewrap{margin-top:4px}
 .homewarn{position:relative; margin:0 auto 34px; max-width:700px; text-align:center; padding:16px 26px;
   border-radius:14px; background:color-mix(in srgb,var(--wc,#ff3b3b) 10%,var(--surface-2));
-  border:1.5px solid color-mix(in srgb,var(--wc,#ff3b3b) 60%,transparent);
-  color:var(--ink-2); font-size:13px; line-height:1.7;
-  animation:homehalo 3.2s ease-in-out infinite}
-.homewarn.nohalo{animation:none;
-  box-shadow:0 0 0 1px color-mix(in srgb,var(--wc,#ff3b3b) 18%,transparent)}
-@keyframes homehalo{
-  0%,100%{box-shadow:0 0 0 1px color-mix(in srgb,var(--wc,#ff3b3b) 18%,transparent), 0 0 24px 4px color-mix(in srgb,var(--wc,#ff3b3b) 28%,transparent)}
-  50%{box-shadow:0 0 0 1px color-mix(in srgb,var(--wc,#ff3b3b) 30%,transparent), 0 0 40px 10px color-mix(in srgb,var(--wc,#ff3b3b) 48%,transparent)}
-}
+  border:1.5px solid color-mix(in srgb,var(--wc,#ff3b3b) 65%,transparent);
+  color:var(--ink-2); font-size:13px; line-height:1.7}
+/* variante un peu plus grande (encadré « Important » de la Tiers List) */
+.homewarn.big{max-width:800px; padding:21px 34px; border-radius:17px; font-size:14.5px}
+.homewarn.big::after{border-radius:22px}
+.homewarn.big::before{border-radius:22px}
+/* variante réduite (encadré « Important » de la page Team) */
+.homewarn.small{max-width:560px; padding:10px 18px; border-radius:11px; font-size:11.5px; line-height:1.55; margin-bottom:22px}
+.homewarn.small::after{border-radius:16px; inset:-4px}
+.homewarn.small::before{border-radius:16px; inset:-4px}
+.homewarn.small .warntag{margin-right:8px}
+/* double ligne : un second contour dessiné en dehors du premier */
+.homewarn::after{content:""; position:absolute; inset:-6px; border-radius:19px; pointer-events:none;
+  border:1.5px solid color-mix(in srgb,var(--wc,#ff3b3b) 32%,transparent)}
+/* effet sur le contour : un reflet qui tourne en continu sur le second trait
+   (rotation de l'angle du dégradé plutôt qu'un transform, qui casse le masque en animation) */
+.homewarn:not(.nohalo)::before{content:""; position:absolute; inset:-6px; border-radius:19px; padding:1.5px;
+  pointer-events:none; --ang:0deg;
+  background:conic-gradient(from var(--ang), transparent 0 62%, color-mix(in srgb,var(--wc,#ff3b3b) 95%,transparent) 76%, transparent 90%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude;
+  animation:homeoutline 3.6s linear infinite}
+@keyframes homeoutline{to{--ang:360deg}}
+.warntag{display:inline-block; color:#ff4d4d; margin-right:11px; letter-spacing:.02em}
 .patchlist{display:grid; gap:10px}
 .patchitem{position:relative; border-radius:12px; padding:12px 16px; background:var(--surface-2);
   border:1.5px solid transparent; transition:transform .15s ease, box-shadow .15s ease}
@@ -1908,43 +2118,35 @@ table.tight .ico{min-width:34px}
 .patchitem.del .patchtag{background:rgba(239,68,68,.2); color:#f87171}
 .patchitem p{margin:0; font-size:12.5px; line-height:1.6; color:var(--ink)}
 
-/* ---------- Accueil : Devblog (accordéon des patch notes) ---------- */
-.devblog{display:flex; gap:16px; margin:26px auto 0; max-width:1000px; align-items:flex-start; flex-wrap:wrap}
-.devcard{position:relative; border-radius:18px; overflow:hidden; flex:1 1 190px;
-  box-shadow:0 10px 26px -14px rgba(0,0,0,.6); transition:flex-grow .4s ease, flex-basis .4s ease}
-.devblog.has-open .devcard:not(.open){flex:0 1 92px}
-.devblog.has-open .devcard:not(.open) .devver{white-space:normal; font-size:8.5px; text-align:center; left:6px; right:6px; padding:3px 5px}
-.devblog.has-open .devcard:not(.open) .devbrand{font-size:11px}
-.devblog.has-open .devcard:not(.open) .devmascot{width:40px}
-.devcard.open{flex:8 1 560px}
-.devcollapsed{position:relative; height:220px; cursor:pointer; display:flex; flex-direction:column;
-  align-items:center; justify-content:flex-end; gap:8px; padding:18px 10px; text-align:center; overflow:hidden;
+/* ---------- Accueil : Devblog (liste + détail + mascotte) ---------- */
+.devblog{display:flex; gap:16px; margin:26px auto 0; max-width:1000px; align-items:stretch}
+.devlist{flex:0 0 190px; display:flex; flex-direction:column; gap:8px}
+.devmini{cursor:pointer; border-radius:12px; padding:10px 14px; background:var(--surface-2);
+  border:1.5px solid transparent; transition:transform .15s ease, border-color .15s ease, background .15s ease}
+.devmini:hover{transform:translateX(3px)}
+.devmini.active{border-color:color-mix(in srgb,var(--accent) 55%,transparent);
+  background:color-mix(in srgb,var(--accent) 14%,var(--surface-2))}
+.devminiv{display:block; font-size:13px; font-weight:800; color:var(--ink)}
+.devminid{display:block; font-size:11px; color:var(--muted); margin-top:2px}
+.devmain{flex:1 1 0; min-width:0; border-radius:18px; padding:20px 22px 22px; background:var(--surface-2);
+  box-shadow:0 10px 26px -14px rgba(0,0,0,.6)}
+.devmainhead{margin-bottom:16px}
+.devmainhead b{display:block; font-size:16px; color:var(--ink)}
+.devdate{display:block; font-size:11.5px; color:var(--muted); margin-top:2px}
+.devside{flex:0 0 140px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+  border-radius:18px; padding:20px 12px; text-align:center; overflow:hidden;
   background:radial-gradient(120% 90% at 50% -10%, color-mix(in srgb,var(--accent) 55%,transparent), transparent 60%),
     linear-gradient(160deg, color-mix(in srgb,var(--accent) 30%,var(--surface-2)), var(--surface-2) 78%);
-  transition:opacity .25s ease, filter .25s ease}
-.devcollapsed:hover{filter:brightness(1.08)}
-.devcard.open .devcollapsed{opacity:0; pointer-events:none; position:absolute; inset:0}
-.devver{position:absolute; top:10px; left:10px; font-size:9.5px; font-weight:800; letter-spacing:.05em;
-  padding:3px 10px; border-radius:999px; background:rgba(0,0,0,.4); color:#fff; text-transform:uppercase; white-space:nowrap}
-.devmascot{width:64px; height:auto; filter:drop-shadow(0 4px 10px rgba(0,0,0,.35))}
+  box-shadow:0 10px 26px -14px rgba(0,0,0,.6)}
+.devmascot{width:72px; height:auto; filter:drop-shadow(0 4px 10px rgba(0,0,0,.35))}
 .devbrand{font-size:14px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; color:#fff;
   text-shadow:0 2px 10px rgba(0,0,0,.5)}
-.devcard:not(.open) .devexpanded{display:none}
-.devcard.open .devexpanded{display:block; padding:20px 22px 22px; min-height:220px; background:var(--surface-2)}
-.devexphead{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:16px}
-.devexphead b{display:block; font-size:15px; color:var(--ink)}
-.devdate{display:block; font-size:11.5px; color:var(--muted); margin-top:2px}
-.devclose{flex:none; background:none; border:1px solid var(--line); color:var(--ink-2); border-radius:8px;
-  padding:5px 12px; cursor:pointer; font-size:11.5px; transition:background .15s ease}
-.devclose:hover{background:var(--surface)}
 @media (max-width:760px){
-  .devblog{flex-direction:column; flex-wrap:nowrap}
-  .devblog.has-open .devcard:not(.open){flex:none}
-  .devcard{flex:none !important; width:100%}
-  .devcollapsed{height:110px; flex-direction:row; justify-content:flex-start; text-align:left; padding:14px 16px}
-  .devver{position:static; margin-right:4px}
-  .devmascot{width:48px; order:2}
-  .devbrand{order:3}
+  .devblog{flex-direction:column}
+  .devlist{flex-direction:row; flex-wrap:wrap; width:100%; flex:none}
+  .devmini{flex:1 1 140px}
+  .devmain{width:100%}
+  .devside{width:100%; flex-direction:row; padding:14px 16px}
 }
 
 /* ---------- Protection du contenu (freins, pas une serrure) ---------- */
@@ -2004,3 +2206,172 @@ html.noimgdrag img{-webkit-user-drag:none; user-drag:none; -webkit-touch-callout
 /* fiches de blocs dans l'admin */
 .cblist{display:grid}
 .cblock .f{margin-top:0}
+
+/* ================= Formes : Météo & Prismana ================= */
+.formeswrap{display:grid; gap:30px}
+.wpanel{display:grid; gap:10px}
+.wpill{display:inline-flex; align-items:center; gap:11px; width:max-content; background:var(--surface);
+  border:1px solid var(--line-2); border-radius:999px; padding:10px 24px 10px 12px; font-weight:700;
+  font-size:18px; box-shadow:var(--shadow)}
+.wpico{width:32px; height:32px; display:block}
+.wp-pluie .wpill{border-color:color-mix(in srgb, #2E8BD6 45%, var(--line-2))}
+.wp-orage .wpill{border-color:color-mix(in srgb, #8A5CD6 45%, var(--line-2))}
+.wp-neige .wpill{border-color:color-mix(in srgb, #2FA8C4 45%, var(--line-2))}
+
+/* particules météo animées sur les vignettes Pluie / Orage / Neige */
+.wp-pluie .wpill, .wp-orage .wpill, .wp-neige .wpill{position:relative; overflow:hidden; isolation:isolate}
+.wp-pluie .wpill .wpico, .wp-pluie .wpill > span:not(.wfx),
+.wp-orage .wpill .wpico, .wp-orage .wpill > span:not(.wfx),
+.wp-neige .wpill .wpico, .wp-neige .wpill > span:not(.wfx){position:relative; z-index:2}
+.wfx{position:absolute; inset:0; z-index:1; pointer-events:none; display:block}
+
+.drop{position:absolute; top:-16%; width:2px; height:22%; border-radius:2px;
+  background:linear-gradient(to bottom, transparent, #6FB4EE 45%, #D6ECFB);
+  opacity:0; animation:dropfall 1.15s linear infinite; animation-delay:calc(var(--i,0) * -0.17s)}
+@keyframes dropfall{
+  0%{transform:translateY(0); opacity:0}
+  10%{opacity:.95}
+  82%{opacity:.65}
+  100%{transform:translateY(320%); opacity:0}
+}
+
+.wp-orage .flash{position:absolute; inset:-40% -10%; border-radius:999px; opacity:0; z-index:1;
+  background:radial-gradient(circle at 24% 45%, rgba(255,210,60,.55), rgba(255,180,40,.28) 40%, transparent 70%);
+  animation:boltflash 4.6s ease-in-out infinite}
+.wp-orage .bolt{position:absolute; top:8%; left:36%; width:8px; height:58%; z-index:1;
+  background:#FFC93C; opacity:0;
+  clip-path:polygon(52% 0%, 4% 58%, 42% 58%, 30% 100%, 96% 38%, 56% 38%);
+  filter:drop-shadow(1px 0 0 #3B2410) drop-shadow(-1px 0 0 #3B2410)
+    drop-shadow(0 1px 0 #3B2410) drop-shadow(0 -1px 0 #3B2410)
+    drop-shadow(0 0 4px rgba(255,201,60,.9));
+  animation:boltflash 4.6s ease-in-out infinite}
+@keyframes boltflash{
+  0%, 83%, 100%{opacity:0}
+  84%{opacity:1}
+  85.3%{opacity:.1}
+  86.3%{opacity:.85}
+  88%{opacity:0}
+}
+
+.flake{position:absolute; top:-9px; width:4px; height:4px; border-radius:50%;
+  background:#BFE7F7; box-shadow:0 0 3px rgba(110,190,230,.9);
+  opacity:0; animation:flakefall 2.8s linear infinite; animation-delay:calc(var(--i,0) * -0.38s)}
+@keyframes flakefall{
+  0%{transform:translate(0,0); opacity:0}
+  10%{opacity:.95}
+  50%{transform:translate(5px, 27px)}
+  88%{opacity:.7}
+  100%{transform:translate(-4px, 60px); opacity:0}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .drop, .flake{animation:none; opacity:0}
+  .wp-orage .flash, .wp-orage .bolt{animation:none; opacity:0}
+}
+.wlocgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:12px}
+.wloc{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:13px 15px;
+  box-shadow:var(--shadow)}
+.wlochead{display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+  padding-bottom:9px; margin-bottom:9px; border-bottom:1px solid var(--line)}
+.wlochead b{font-size:14px}
+.wlvl{font-size:11px; color:var(--muted)}
+.wlocrows{display:grid; gap:8px}
+.wrow{display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:center}
+.wjico{display:inline-flex; align-items:center; justify-content:center; flex:none;
+  width:68px; height:96px; border-radius:12px; overflow:hidden; background:none}
+.wjico img{width:100%; height:100%; object-fit:cover; object-position:center 22%; display:block}
+.wrowmeta{min-width:0}
+.wrowmeta b{display:block; font-size:13.5px}
+.wform{display:block; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted);
+  margin:1px 0 5px}
+.wchips{display:flex; flex-wrap:wrap; gap:4px}
+.wrow,.prow{width:100%; padding:6px; margin:-6px 0; border-radius:10px; text-align:left}
+
+/* liste des Prismana par lieu, sous la carte des Fleurs de Leyline */
+.prismlist{margin-top:6px}
+.prico{display:inline-flex; align-items:center; justify-content:center; flex:none;
+  width:68px; height:96px; border-radius:12px; overflow:hidden; background:none}
+.prico img{width:100%; height:100%; object-fit:cover; object-position:center 22%; display:block}
+.prow{display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:center}
+.prowmeta{min-width:0}
+.prowmeta b{display:block; font-size:13.5px; margin-bottom:4px}
+@media (max-width:560px){
+  .wjico,.prico{width:56px; height:80px}
+}
+
+/* carte des Fleurs de Leyline */
+.leylinewrap{display:grid; gap:12px; scroll-margin-top:18px}
+.leytitle{display:flex; align-items:center; justify-content:center; gap:10px; margin:6px 0 0; text-align:center}
+.leytitleico{width:30px; height:30px; display:block; flex:none}
+.leymapbox{position:relative; width:100%; max-width:900px; margin:0 auto}
+.leymap{width:100%; display:block; border-radius:16px; box-shadow:var(--shadow)}
+.leyspot{position:absolute; transform:translate(-50%,-50%); width:30px; height:30px; padding:0;
+  background:none; border:0; cursor:pointer; display:grid; place-items:center; z-index:2}
+.leyspot img{width:100%; height:100%; display:block; filter:drop-shadow(0 2px 5px rgba(0,0,0,.55));
+  transition:transform .18s ease}
+.leyspot:hover img,.leyspot:focus-visible img{transform:scale(1.4)}
+.leyspot::before{content:""; position:absolute; inset:-2px; border-radius:50%;
+  border:2px solid rgba(78,187,216,.65); pointer-events:none}
+@media (prefers-reduced-motion:no-preference){
+  .leyspot::before{animation:leyping 2.4s ease-out infinite; animation-delay:calc(var(--i,0) * -.35s)}
+  @keyframes leyping{
+    0%{transform:scale(.55); opacity:.85}
+    75%{opacity:0}
+    100%{transform:scale(2.3); opacity:0}
+  }
+}
+.leyname{position:absolute; left:50%; bottom:calc(100% + 9px); transform:translateX(-50%) translateY(4px);
+  background:rgba(12,16,24,.95); color:#fff; padding:5px 11px; border-radius:8px; font-size:12px;
+  font-weight:600; white-space:nowrap; opacity:0; pointer-events:none; box-shadow:0 6px 16px rgba(0,0,0,.4);
+  transition:opacity .15s ease, transform .15s ease}
+.leyname::after{content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+  border:5px solid transparent; border-top-color:rgba(12,16,24,.95)}
+.leyspot:hover .leyname,.leyspot:focus-visible .leyname{opacity:1; transform:translateX(-50%) translateY(0)}
+@media (max-width:700px){
+  .leyspot{width:22px; height:22px}
+  .leyname{font-size:11px; padding:4px 9px}
+}
+
+/* ================= Œufs & Éclosions ================= */
+.oeufswrap{display:grid; gap:22px}
+.ctrtitle{display:flex; justify-content:center; text-align:center; margin:8px 0 0}
+
+.eggsteps{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:10px}
+.eggstep{display:flex; gap:12px; padding:14px 16px; border-radius:12px;
+  background:var(--surface); border:1px solid var(--line); box-shadow:var(--shadow)}
+.eggstepnum{flex:none; width:26px; height:26px; border-radius:50%; background:var(--accent); color:var(--accent-ink);
+  display:grid; place-items:center; font-size:12px; font-weight:700}
+.eggstep b{display:block; font-size:12.5px; margin-bottom:3px; color:var(--ink)}
+.eggstep p{margin:0; font-size:11px; color:var(--muted); line-height:1.5}
+
+.eggtrackwrap{overflow:hidden; max-width:660px; margin:0 auto; width:100%;
+  -webkit-mask-image:linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+  mask-image:linear-gradient(to right, transparent, #000 6%, #000 94%, transparent)}
+.eggtrack{display:flex; width:max-content; gap:14px; padding:6px 2px 14px; will-change:transform}
+.eggtrackwrap.prismana .eggtrack{animation:eggscroll 42s linear infinite}
+.eggtrackwrap.ombrage .eggtrack{animation:eggscroll 24s linear infinite}
+.eggtrackwrap.prismana .eggtrack:hover,
+.eggtrackwrap.ombrage .eggtrack:hover{animation-play-state:paused}
+@keyframes eggscroll{
+  from{transform:translateX(0)}
+  to{transform:translateX(-50%)}
+}
+.eggcard{position:relative; flex:none; width:108px; display:flex; flex-direction:column; align-items:center;
+  gap:6px; background:none; border:0; padding:4px; margin:0; cursor:pointer; font:inherit; color:inherit; z-index:1}
+.eggcard:hover{z-index:2}
+.eggico{position:relative; display:block; width:92px; height:92px; border-radius:14px; overflow:hidden;
+  background:var(--surface); border:1px solid var(--line); box-shadow:var(--shadow)}
+.eggico img{width:100%; height:100%; object-fit:cover; display:block; transition:transform .25s ease}
+.eggcard:hover .eggico img{transform:scale(1.28)}
+.eggtrackwrap.prismana .eggico{border-color:color-mix(in srgb, var(--accent) 45%, var(--line))}
+.eggtrackwrap.ombrage .eggico{border-color:color-mix(in srgb, #8A5CD6 45%, var(--line))}
+.eggcard b{font-size:11px; font-weight:600; text-align:center; max-width:100px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+@media (prefers-reduced-motion:reduce){
+  .eggtrack{animation:none !important}
+}
+@media (max-width:560px){
+  .eggtrackwrap{max-width:100%}
+  .eggcard{width:84px}
+  .eggico{width:72px; height:72px}
+}

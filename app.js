@@ -121,6 +121,11 @@
   function specsOf(a) { return a.elems || []; }
   function mainJob(a) { return a.jobs && a.jobs.length ? jobOf(a.jobs[0]) : null; }
   function findAni(n) { for (var i = 0; i < S.aniimos.length; i++) if (S.aniimos[i].name === n) return S.aniimos[i]; return null; }
+  /* Aniimo masqués (drapeau "hidden") : leurs données restent en base pour un
+     retour en arrière plus tard, mais ils n'apparaissent nulle part sur le
+     site public (rosters, tiers, recherche, équipes...) — seul le panneau
+     admin continue de les lister pour pouvoir les gérer. */
+  function activeAniimos() { return S.aniimos.filter(function (a) { return !a.hidden; }); }
   function chartOf(e) { return (S.chart || {})[e] || { strong: [], weak: [], resist: [] }; }
 
   function defs() {
@@ -175,12 +180,14 @@
     Autre: '<circle cx="12" cy="12" r="3.4"/><path d="M12 3v3.2M12 17.8V21M3 12h3.2M17.8 12H21M5.6 5.6l2.3 2.3M16.1 16.1l2.3 2.3M18.4 5.6l-2.3 2.3M7.9 16.1l-2.3 2.3"/>'
   };
   var STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0c.7 6.4 4.9 10.6 12 12-7.1 1.4-11.3 5.6-12 12-.7-6.4-4.9-10.6-12-12C7.1 10.6 11.3 6.4 12 0Z"/></svg>';
-  /* nom d'un Aniimo, décoré (dégradé arc-en-ciel + étincelles) quand il est Légendaire */
+  /* nom d'un Aniimo, décoré (dégradé + étincelles) quand il est Légendaire (arc-en-ciel)
+     ou Starter (turquoise) */
   function nameHtml(a) {
-    if (!a || !a.legendary) return esc(a && a.name);
+    if (!a || (!a.legendary && !a.starter)) return esc(a && a.name);
+    var cls = a.legendary ? "legendname" : "startername";
     var sp = "";
     for (var i = 1; i <= 5; i++) sp += '<span class="sp sp' + i + '">' + STAR + "</span>";
-    return '<span class="legendname">' + esc(a.name) + sp + "</span>";
+    return '<span class="' + cls + '">' + esc(a.name) + sp + "</span>";
   }
   function skKey(aniName, skName) { return aniName + "|" + skName; }
   function skImg(uri, alt) {
@@ -208,8 +215,7 @@
   function typeChip(a) {
     if (!a.type || a.type === "n.c.") return '<span class="chip sm ghost">n.c.</span>';
     return '<span class="chip sm" style="background:' + (TYPE_COLOR[a.type] || "#888") + '"' +
-      (a.typeNote ? ' title="' + esc(a.typeNote) + '"' : "") + ">" + esc(a.type) +
-      (a.typeGuess ? " ?" : "") + "</span>";
+      (a.typeNote ? ' title="' + esc(a.typeNote) + '"' : "") + ">" + esc(a.type) + "</span>";
   }
   /* --- pictogrammes des métiers (extraits des puces du jeu) --- */
   function jobIcon(j, size) {
@@ -271,7 +277,7 @@
   }
   function roleScores(role) {
     if (role === "ALL") return allScores();
-    var list = S.aniimos.filter(function (a) { return a.role === role; });
+    var list = activeAniimos().filter(function (a) { return a.role === role; });
     if (!list.length) return [];
     function rng(f) {
       var vs = list.map(f);
@@ -304,6 +310,42 @@
 
   /* ---------------- vue ---------------- */
   var animate = false;
+  /* effet d'ouverture de la fiche détaillée d'un Aniimo : indépendant du drapeau
+     "animate" ci-dessus (qui rejouerait aussi l'effet d'arrivée de toute la page
+     en dessous) — actif seulement le temps du rendu qui ouvre la pop-up. */
+  var detailOpening = false;
+  /* effet "Mise au point" (assez lent) sur le panneau central du Devblog,
+     rejoué uniquement quand on clique une version dans la colonne de gauche —
+     même principe que detailOpening : ne touche pas le reste de la page. */
+  var devOpening = false;
+  /* fermeture de la fiche détaillée : on rejoue l'effet "Profondeur" à l'envers
+     avant de retirer réellement la pop-up, plutôt que de la faire disparaître net. */
+  function closeDetail() {
+    var dlg = document.querySelector(".dlg");
+    var side = document.querySelector(".dlgside");
+    var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!dlg || reduced) { view.detail = null; render(); return; }
+    var done = false;
+    var finish = function () {
+      if (done) return;
+      done = true;
+      view.detail = null; render();
+    };
+    /* "detailin" reste sur l'élément après l'ouverture ; comme detailout rejoue le
+       même nom de keyframe qu'une variante inversée de celui-ci, changer juste la
+       classe ne suffit pas à relancer l'animation (le navigateur ne redémarre pas
+       une animation déjà terminée si animation-name ne change pas visiblement) —
+       on retire donc l'ancienne classe et on force un reflow avant d'ajouter la
+       nouvelle, avec un vrai jeu de keyframes dédié à la sortie. */
+    [dlg, side].forEach(function (el) {
+      if (!el) return;
+      el.classList.remove("detailin");
+      void el.offsetWidth;
+      el.classList.add("detailout");
+    });
+    dlg.addEventListener("animationend", finish, { once: true });
+    setTimeout(finish, 650); /* filet de sécurité si l'événement ne se déclenche pas */
+  }
   function fxOf(page) {
     var c = (S.pageEffects || {})[page] || {};
     return { fx: c.fx || "none", sp: c.sp || "mid" };
@@ -318,19 +360,19 @@
     tab: "accueil", q: "", elem: "", role: "", job: "", type: "", sort: "no", dir: 1, pick: null,
     teamMode: "manuel", teamMain: "Fulmintis", teamSlots: ["", "", "", ""], adminSec: "aniimo",
     tcreate: false, tpick: null, tfold: false, tvote: false,
-    openPicker: null, pickerQ: "", boss: "", bossType: "", pins: null, abil: "homeland", tier: "DPS", detail: null,
-    infoTag: null, etWhyOpen: {}, etInfoOpen: null, elemInfo: "Feu", devOpen: null, customEdit: null
+    openPicker: null, pickerQ: "", boss: "", bossType: "", pins: null, abil: "homeland", tier: "ALL", detail: null,
+    infoTag: "raretes", etWhyOpen: {}, etInfoOpen: null, elemInfo: "Feu", devOpen: 0, customEdit: null
   };
 
   var TABS = [
     { id: "accueil", label: "Accueil", kind: "home", grp: "Fiches" },
-    { id: "tous", label: "Tous les Aniimos", kind: "roster", grp: "Fiches" },
     { id: "informations", label: "Informations", kind: "wip", grp: "Fiches" },
+    { id: "tous", label: "Tous les Aniimos", kind: "roster", grp: "Fiches" },
+    { id: "puissance", label: "Les compétences", kind: "power", grp: "Fiches" },
     { id: "tiers", label: "Tiers List", kind: "tier", grp: "Fiches" },
     { id: "team", label: "Team", kind: "team", grp: "Fiches" },
     { id: "equipements", label: "Equipements", kind: "wip", grp: "Fiches" },
     { id: "abilites", label: "Abilités", kind: "abil", grp: "Fiches" },
-    { id: "puissance", label: "Les compétences", kind: "power", grp: "Fiches" },
     { id: "metiers", label: "Métiers Aniimo", kind: "jobs", grp: "Fiches" },
     { id: "homeland", label: "HomeLand", kind: "wip", grp: "Fiches" },
     { id: "admin", label: "Panneau admin", kind: "admin", grp: "Gestion" }
@@ -347,7 +389,7 @@
   }
 
   function rows(tab) {
-    var list = S.aniimos.slice();
+    var list = activeAniimos().slice();
     if (tab && tab.role) list = list.filter(function (a) { return a.role === tab.role; });
     if (view.elem) list = list.filter(function (a) { return a.elems.indexOf(view.elem) >= 0; });
     if (view.role) list = list.filter(function (a) { return a.role === view.role; });
@@ -406,10 +448,10 @@
   /* ---------------- fiche : tous les Aniimos ---------------- */
   function viewRoster() {
     var list = rows(null);
-    var maxAtk = Math.max.apply(null, S.aniimos.map(function (a) { return a.atk; }));
-    var maxTot = Math.max.apply(null, S.aniimos.map(total));
+    var maxAtk = Math.max.apply(null, activeAniimos().map(function (a) { return a.atk; }));
+    var maxTot = Math.max.apply(null, activeAniimos().map(total));
     var h = '<div class="head"><h1>Tous les Aniimos</h1><span class="count">' + list.length + " / " +
-      S.aniimos.length + "</span>" + tipNote(TIP_CLICK, "right") + "</div>" +
+      activeAniimos().length + "</span>" + tipNote(TIP_CLICK, "right") + "</div>" +
       toolbar({}) + '<div class="tablewrap"><table class="tight roster' + animClass() + '"><thead><tr>' +
       '<th class="w-rank">#</th><th class="w-ico"></th>' + th("N°", "no", "w-no") + th("Nom", "name", "w-nm") +
       th("Élément", "elem") + th("Rôle", "role") + th("Métier", "job") + th("Type", "type") +
@@ -437,9 +479,9 @@
   function viewPower() {
     if (["score", "best", "name"].indexOf(view.sort) < 0) { view.sort = "score"; view.dir = -1; }
     var list = rows(null);
-    var maxScore = Math.max.apply(null, S.aniimos.map(score));
+    var maxScore = Math.max.apply(null, activeAniimos().map(score));
     var h = '<div class="head"><h1>Les compétences</h1><span class="count">' + list.length + " / " +
-      S.aniimos.length + "</span>" + tipNote(TIP_CLICK, "right") + "</div>" +
+      activeAniimos().length + "</span>" + tipNote(TIP_CLICK, "right") + "</div>" +
       '<p class="sub">Score = somme des 3 compétences les plus puissantes (valeur « Might » du jeu).</p>' +
       toolbar({}) +
       '<div class="toolbar" style="margin-top:-6px"><div class="field"><label for="fs">Trier par</label>' +
@@ -454,7 +496,7 @@
       h += '<article class="powcard fxi" style="--i:' + Math.min(i, 24) + '">' +
         '<div class="powhead"><span class="pos">' + (i + 1) + "</span>" + aniLink(a, icon(a, 44)) +
         '<div class="pi"><b>' + aniLink(a, nameHtml(a)) + '</b><div class="chips">' + a.elems.map(elemChip).join(" ") +
-        roleChip(a.role) + typeChip(a) + (a.legendary ? '<span class="chip legendary">Légendaire</span>' : "") + "</div></div></div>" +
+        roleChip(a.role) + typeChip(a) + (a.legendary ? '<span class="chip legendary">Légendaire</span>' : (a.starter ? '<span class="chip starter">Starter</span>' : "")) + "</div></div></div>" +
         '<div class="powstats">' +
         '<div><span class="lbl">Score</span><b>' + score(a) + "</b></div>" +
         '<div><span class="lbl">ATK</span><b>' + a.atk + "</b></div></div>" +
@@ -598,7 +640,7 @@
     var a = findAni(name);
     if (!a) return "";
     var maxes = { hp: 0, atk: 0, pdef: 0, mdef: 0, brk: 0, regen: 0, total: 0 };
-    S.aniimos.forEach(function (x) {
+    activeAniimos().forEach(function (x) {
       Object.keys(maxes).forEach(function (k) { if (x[k] > maxes[k]) maxes[k] = x[k]; });
       if (total(x) > maxes.total) maxes.total = total(x);
     });
@@ -611,13 +653,14 @@
     var evoTxt = isFinal(a) ? "Forme finale"
       : "Évolue en " + (a.evo || []).join(" ou ");
 
+    var openCls = detailOpening ? " detailin" : "";
     var h = '<div class="dlg-back" data-close="1"></div><div class="dlgwrap">' +
-      '<div class="dlg" role="dialog" aria-modal="true" aria-label="' +
+      '<div class="dlg' + openCls + '" role="dialog" aria-modal="true" aria-label="' +
       esc(a.name) + '"><button class="dlgx" data-close="1" aria-label="Fermer">✕</button>' +
       '<div class="dlghead">' + icon(a, 92) +
       '<div><div class="no">N° ' + esc(a.no) + "</div><h2>" + nameHtml(a) + "</h2>" +
       '<div class="chips">' + a.elems.map(elemChip).join(" ") + roleChip(a.role) + typeChip(a) +
-      jobChips(a) + (a.legendary ? '<span class="chip legendary">Légendaire</span>' : "") + "</div>" +
+      jobChips(a) + (a.legendary ? '<span class="chip legendary">Légendaire</span>' : (a.starter ? '<span class="chip starter">Starter</span>' : "")) + "</div>" +
       '<div class="devo"' + (isFinal(a) ? ' data-fin="1"' : "") + ">" + esc(evoTxt) + "</div>" +
       (band ? '<div class="dtier"><span class="tchip" style="background:' + band.color + '">' + band.k +
         '</span> ' + pos + "<sup>" + (pos === 1 ? "er" : "e") + '</sup> sur ' + ranked.length +
@@ -677,7 +720,7 @@
   function teamPanel(a) {
     var found = teamsWith(a.name);
     var own = (a.elems || [])[0];
-    var h = '<aside class="dlgside" aria-label="Équipes de ' + esc(a.name) + '">' +
+    var h = '<aside class="dlgside' + (detailOpening ? " detailin" : "") + '" aria-label="Équipes de ' + esc(a.name) + '">' +
       '<div class="dsh"><b>Ses équipes</b><span>compositions conseillées par élément</span></div>' +
       '<div class="dsbody">';
 
@@ -769,37 +812,52 @@
   }
 
   /* ---------------- fiche : métiers ---------------- */
+  /* détail des niveaux d'un métier : Lv.1 -> Lv.max, chacun avec son propre
+     rendement — un métier n'est jamais "juste Lv.4", c'est une progression */
+  function jobLevelsHtml(j) {
+    var lv = (S.levels || []).filter(function (l) { return l.lv <= j.max; });
+    return '<div class="joblevels">' + lv.map(function (l) {
+      return '<div class="joblv' + (l.lv === j.max ? " cur" : "") + '"><b>Lv.' + l.lv + "</b><span>" +
+        l.rate + "/min</span></div>";
+    }).join("") + "</div>";
+  }
+  /* icône carrée dédiée aux Métiers : artwork officiel sur un fond coloré selon
+     l'élément de l'Aniimo. Toutes les cartes sont carrées : celles qui n'ont pas
+     encore leur art dédié dans icon/System/Metier retombent sur le portrait
+     habituel de l'Aniimo, affiché dans le même cadre carré coloré (jamais rond). */
+  function jobAniIcon(a, size) {
+    var src = (S.jobIcons || {})[a.name.toLowerCase()] || a.img;
+    var e = a.elems && a.elems[0] ? a.elems[0] : "Vent";
+    var bg = (S.elements || {})[e] || "#888";
+    if (!src) {
+      return '<span class="jico" style="width:' + size + 'px;height:' + size + 'px;background:' + bg + '">' +
+        icon(a, Math.round(size * .8)) + "</span>";
+    }
+    return '<span class="jico" style="width:' + size + 'px;height:' + size + 'px;background:' + bg + '">' +
+      '<img src="' + src + '" alt="' + esc(a.name) + '" loading="lazy"></span>';
+  }
+  /* grille compacte d'icônes + nom, utilisée sous chaque carte de métier */
+  function jobRoster(list) {
+    if (!list.length) return "";
+    return '<div class="jobroster">' + list.map(function (a) {
+      return '<div class="jobmini">' + aniLink(a, jobAniIcon(a, 56) + "<b>" + esc(a.name) + "</b>") + "</div>";
+    }).join("") + "</div>";
+  }
   function viewJobs() {
-    var counts = {}, none = 0;
-    S.jobs.forEach(function (j) { counts[j.key] = 0; });
-    S.aniimos.forEach(function (a) {
-      if (!a.jobs || !a.jobs.length) { none++; return; }
-      a.jobs.forEach(function (k) { if (counts[k] != null) counts[k]++; });
+    var members = {};
+    S.jobs.forEach(function (j) { members[j.key] = []; });
+    activeAniimos().forEach(function (a) {
+      if (!a.jobs || !a.jobs.length) return;
+      a.jobs.forEach(function (k) { if (members[k]) members[k].push(a); });
     });
     var sorted = S.jobs.slice().sort(function (a, b) { return a.rank - b.rank; });
-    var h = '<div class="head"><h1>Métiers Aniimo</h1><span class="count">' + S.jobs.length + " métiers</span></div>" +
-      '<p class="sub">Classés par niveau maximum atteint puis par rendement. Chaque métier a sa couleur et son pictogramme, repris partout ailleurs.</p>' +
-      '<div class="grid cards4' + animClass() + '">';
-    sorted.forEach(function (j, ji) {
-      h += '<div class="card jobcard fxi" style="--i:' + ji + '"><div class="badge" style="background:' + j.color + '">' +
-        jobIcon(j, 30) + "</div>" +
-        "<div><h3>" + esc(j.name) + "</h3>" +
-        (j.excl ? '<div class="lbl"><span class="excl">' + esc(j.excl) + "</span></div>" : "") +
-        "<p>" + esc(j.desc) + "</p>" +
-        '<dl class="kv"><dt>Niveau max</dt><dd><b>Lv.' + j.max + "</b></dd>" +
-        "<dt>Rendement</dt><dd>" + j.rate + "/min" +
-        (j.rate > 60 ? ' <span class="rank">+' + Math.round((j.rate / 60 - 1) * 100) + "%</span>" : "") + "</dd>" +
-        "<dt>Aniimo</dt><dd>" + counts[j.key] + "</dd></dl></div></div>";
-    });
-    h += '<div class="card jobcard fxi" style="--i:5"><div class="badge" style="background:var(--surface-2);color:var(--muted)">∅</div><div>' +
-      "<h3>Aucun métier</h3><p>Le métier est un attribut que tous les Aniimo n'ont pas : ceux-là sont purement des combattants.</p>" +
-      '<dl class="kv"><dt>Aniimo</dt><dd>' + none + "</dd></dl></div></div></div>";
+    var h = '<div class="head"><h1>Métiers Aniimo</h1><span class="count">' + S.jobs.length + " métiers</span></div>";
 
     h += '<h2 class="sec">Spécialités du Foyer</h2>' +
       '<p class="sub">Chaque élément donne accès à des installations différentes. Un Aniimo apporte la spécialité de son ou ses éléments.</p>' +
       '<div class="grid cards3' + animClass() + '">';
     (S.specs || []).forEach(function (sp, si) {
-      var n = S.aniimos.filter(function (a) { return specsOf(a).indexOf(sp.name) >= 0; }).length;
+      var n = activeAniimos().filter(function (a) { return specsOf(a).indexOf(sp.name) >= 0; }).length;
       h += '<div class="card speccard fxi" style="--i:' + si + '">' +
         '<div class="spechead"><span class="specbadge" style="background:' + sp.color + '">' +
         (sp.img ? '<img src="' + sp.img + '" alt="">' : "") + "</span>" +
@@ -808,6 +866,20 @@
         (sp.note ? '<div class="specnote">' + esc(sp.note) + "</div>" : "") + "</div>";
     });
     h += "</div>";
+
+    h += '<h2 class="sec">Métiers Aniimo</h2>' +
+      '<p class="sub">Chaque métier progresse du niveau 1 jusqu\'à son niveau maximum, avec un meilleur rendement à chaque palier. Chaque métier a sa couleur et son pictogramme, repris partout ailleurs.</p>';
+    var jobCards = sorted.map(function (j, ji) {
+      var jm = members[j.key] || [];
+      return '<div class="card jobcard fxi" style="--i:' + ji + '"><div class="badge" style="background:' + j.color + '">' +
+        jobIcon(j, 30) + "</div>" +
+        "<div><h3>" + esc(j.name) + "</h3>" +
+        (j.excl ? '<div class="lbl"><span class="excl">' + esc(j.excl) + "</span></div>" : "") +
+        "<p>" + esc(j.desc) + "</p>" +
+        '<dl class="kv" style="margin-top:8px"><dt>Aniimo</dt><dd>' + jm.length + "</dd></dl>" +
+        '<hr class="jobsep">' + jobRoster(jm) + "</div></div>";
+    });
+    h += '<div class="grid cards2 top' + animClass() + '">' + jobCards.join("") + "</div>";
 
     h += '<h2 class="sec">Échelle de rendement</h2><div class="tablewrap"><table class="tight"><thead><tr>' +
       "<th>Niveau</th><th>Rendement</th><th>Écart vs Lv.1</th><th>Métiers concernés</th></tr></thead><tbody>";
@@ -818,22 +890,6 @@
     });
     h += "</tbody></table></div>";
 
-    h += '<h2 class="sec">Les Aniimo regroupés par métier</h2>' + toolbar({}) +
-      '<div class="tablewrap"><table class="tight' + animClass() + '"><thead><tr><th class="w-ico"></th>' + th("Nom", "name", "w-nm") +
-      th("Élément", "elem") + th("Rôle", "role") + "<th>Métier</th>" + th("Niv.", "lvl", "num") +
-      "</tr></thead><tbody>";
-    var list = rows(null).slice().sort(function (a, b) {
-      var ja = mainJob(a) ? mainJob(a).rank : 9, jb = mainJob(b) ? mainJob(b).rank : 9;
-      if (ja !== jb) return ja - jb;
-      return a.name.localeCompare(b.name);
-    });
-    list.forEach(function (a, li) {
-      h += '<tr class="fxi" style="--i:' + Math.min(li, 26) + '"><td>' + aniLink(a, icon(a)) +
-        '</td><td class="nm">' + aniLink(a, nameHtml(a)) + "</td><td>" +
-        a.elems.map(elemChip).join(" ") + "</td><td>" + roleChip(a.role) + "</td><td>" + jobChips(a) +
-        '</td><td class="num">' + (a.jobLevel ? "Lv." + a.jobLevel : "—") + "</td></tr>";
-    });
-    h += "</tbody></table></div>";
     return h;
   }
 
@@ -1094,10 +1150,22 @@
     return null;
   }
   /* palier retenu : liste perso > correction admin > score calculé */
-  function bandOf(r, best, list) {
+  function bandOf(r, bestMap, list) {
     var k = list ? (list.tiers || {})[r.a.name] : tFix()[r.a.name];
     var b = k ? bandByKey(k) : null;
-    return b || (list ? null : tierOf(r.s, best));
+    return b || (list ? null : tierOf(r.s, bestMap[grpOf(r.a.role).key] || 0));
+  }
+  /* meilleur score de chaque famille de rôles (DPS/Break/Support·Regen/Soin),
+     pour que la vue « Tout » tiere chaque colonne par rapport à son propre
+     maximum plutôt que par rapport au meilleur score toutes familles confondues
+     — sinon un soigneur ou un support n'atteint quasiment jamais T0/T0.5. */
+  function groupBestOf(ranked) {
+    var out = {};
+    TIER_GROUPS.forEach(function (g) {
+      var vals = ranked.filter(function (r) { return g.roles.indexOf(r.a.role) >= 0; }).map(function (r) { return r.s; });
+      out[g.key] = vals.length ? Math.max.apply(null, vals) : 0;
+    });
+    return out;
   }
   function whyOf(a) { return tWhy()[a.name] || kitLabel(a); }
 
@@ -1111,7 +1179,7 @@
     if (!list && role !== "ALL" && !S.roles[role]) { role = "DPS"; view.tier = role; }
 
     /* la Tiers List ne retient que les formes finales */
-    var finals = S.aniimos.filter(isFinal);
+    var finals = activeAniimos().filter(isFinal);
     var counts = {};
     finals.forEach(function (a) { counts[a.role] = (counts[a.role] || 0) + 1; });
     var ranked = roleScores(role).filter(function (r) { return isFinal(r.a); });
@@ -1126,6 +1194,9 @@
 
     var h = '<div class="head"><h1>Tiers List</h1><span class="count">' +
       (list ? Object.keys(list.tiers || {}).length + " placés" : ranked.length + " Aniimo") + "</span></div>";
+
+    h += '<div class="homewarn big" style="--wc:#ff3b3b"><b class="warntag">Important</b>' +
+      "Cette Tiers List n'est pas une nécessité : tous les Aniimos sont jouables !</div>";
 
     /* --- étiquettes : rôles, Tout, listes perso, Créer --- */
     h += '<div class="modes tiersw">' + TIER_ROLES.map(function (r) {
@@ -1210,7 +1281,7 @@
         ? "Tous rôles confondus : chaque Aniimo est noté sur les critères de <b>son propre rôle</b>, puis tout est fusionné en un seul classement. Un soigneur excellent peut donc devancer un DPS moyen."
         : "Rôle " + esc(lab) + " — critères : " + esc(ROLE_CRIT[role])) + "</p>" +
         '<p class="tiercrit">Seules les <b>formes finales</b> sont classées (' + finals.length +
-        " sur " + S.aniimos.length + ") : une pré-évolution finit toujours par devenir sa forme finale.</p>";
+        " sur " + activeAniimos().length + ") : une pré-évolution finit toujours par devenir sa forme finale.</p>";
     }
     h += "</div>";
     h += votePanel();
@@ -1240,7 +1311,7 @@
     if (!groups.length) groups = TIER_GROUPS.slice();
 
     /* --- répartition dans les bandes --- */
-    var best = ranked.length ? ranked[0].s : 0;
+    var bestMap = groupBestOf(ranked);
     var bands = TIERS.map(function (t) { return { t: t, cells: {} }; });
     bands.forEach(function (b) { groups.forEach(function (g) { b.cells[g.key] = []; }); });
     var pool = {};
@@ -1248,7 +1319,7 @@
     shown.forEach(function (r) {
       var g = grpOf(r.a.role);
       if (!pool[g.key]) return;
-      var band = bandOf(r, best, list);
+      var band = bandOf(r, bestMap, list);
       if (!band) { pool[g.key].push(r); return; }
       for (var i = 0; i < bands.length; i++) if (bands[i].t.k === band.k) bands[i].cells[g.key].push(r);
     });
@@ -1654,14 +1725,14 @@
   }
   /* candidats qui frappent en ×1,6 un élément donné */
   function coversElem(elem, exclude, n) {
-    return S.aniimos.filter(function (a) {
+    return activeAniimos().filter(function (a) {
       return isFinal(a) && exclude.indexOf(a.name) < 0 &&
         (a.elems || []).some(function (e) { return chartOf(e).strong.indexOf(elem) >= 0; });
     }).sort(function (x, y) { return hit(y) - hit(x); }).slice(0, n || 2);
   }
   /* candidats porteurs d'un apport précis */
   function withTag(tag, exclude, n) {
-    return S.aniimos.filter(function (a) {
+    return activeAniimos().filter(function (a) {
       return isFinal(a) && exclude.indexOf(a.name) < 0 && tagsOf(a).indexOf(tag) >= 0;
     }).sort(function (x, y) { return total(y) - total(x); }).slice(0, n || 2);
   }
@@ -1720,7 +1791,7 @@
     members.forEach(function (a) { (a.elems || []).forEach(function (e) { core[e] = (core[e] || 0) + 1; }); });
     Object.keys(core).forEach(function (e) {
       if (core[e] < 2) return;
-      var amp = S.aniimos.filter(function (a) {
+      var amp = activeAniimos().filter(function (a) {
         return isFinal(a) && have.indexOf(a.name) < 0 && (a.elems || []).indexOf(e) >= 0 &&
           (tagsOf(a).indexOf("dmgUp") >= 0 || tagsOf(a).indexOf("crit") >= 0 || tagsOf(a).indexOf("team") >= 0);
       }).sort(function (x, y) { return total(y) - total(x); }).slice(0, 2);
@@ -1880,7 +1951,7 @@
   function aniRandIndex(name) {
     if (!ANI_RAND_ORDER) {
       ANI_RAND_ORDER = {};
-      var arr = S.aniimos.map(function (a) { return a.name; });
+      var arr = activeAniimos().map(function (a) { return a.name; });
       for (var i = arr.length - 1; i > 0; i--) {
         var j = Math.floor(Math.random() * (i + 1));
         var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
@@ -1892,7 +1963,7 @@
   function aniPicker(id, val, ph, roles, rand) {
     var cur = val ? findAni(val) : null;
     var open = view.openPicker === id;
-    var list = S.aniimos.slice();
+    var list = activeAniimos().slice();
     if (rand) list.sort(function (a, b) { return aniRandIndex(a.name) - aniRandIndex(b.name); });
     else list.sort(function (a, b) { return a.name.localeCompare(b.name); });
     if (roles && roles.length) list = list.filter(function (a) { return roles.indexOf(a.role) >= 0; });
@@ -2109,24 +2180,14 @@
     return ELEM_TEAM_ORDER.filter(function (e) { return ELEM_ORDER.indexOf(e) >= 0; })
       .concat(ELEM_ORDER.filter(function (e) { return ELEM_TEAM_ORDER.indexOf(e) < 0; }));
   }
-  /* encadré à droite : qui bat qui, en un coup d'œil (chips, pas de texte) */
-  function elemChartBox() {
-    return '<aside class="etchart"><h4>Qui bat qui</h4>' +
-      '<div class="etghead"><span></span><span></span><span>Ses contres</span></div>' +
-      elemTeamOrder().map(function (e) {
-        var ch = chartOf(e);
-        return '<div class="etcrow">' + elemChip(e) +
-          '<span class="etarrow">←</span>' +
-          '<span class="etcloses">' + (ch.weak.map(elemChip).join("") || '<span class="etcempty">—</span>') + "</span>" +
-          "</div>";
-      }).join("") + "</aside>";
-  }
-
   function elemTeamsPanel() {
-    var h = '<section class="etsec"><div class="etbody">' +
-      skHead("Les meilleures équipes par élément") + elemChartBox() +
+    var h = '<div class="homewarn small" style="--wc:#ff3b3b"><b class="warntag">Important</b>' +
+      "Les Teams présentées ne sont que des exemples. Dans une team, il te faut un DPS et un BREAK ; " +
+      "les rôles Support, Regen et Soin, eux, se valent et sont interchangeables.</div>" +
+      '<section class="etsec"><div class="etbody">' +
+      skHead("Les meilleures équipes par élément") +
       '<p class="etlead">Une équipe bâtie autour de chaque élément : un DPS pour porter les dégâts, ' +
-      "un BREAK pour ouvrir la garde, un soutien et un relais d'énergie. Clique une vignette pour ouvrir sa fiche.</p>" +
+      "un BREAK pour ouvrir la garde, un soutien et un relais d'énergie.</p>" +
       goldNote("À noter",
         "Les teams proposées ont été faites de manière à optimiser au mieux vos combats. " +
         "Chaque élément a sa Team 1 et sa Team 2, à jouer selon les Aniimo dont tu disposes.") +
@@ -2184,93 +2245,8 @@
   }
 
   function viewTeam() {
-    var h = '<div class="head"><h1>Team</h1></div>' +
-      "";
-
-    h += '<div class="modes"><button class="btn' + (view.teamMode === "manuel" ? " primary" : "") + '" data-mode="manuel">Composer moi-même</button>' +
-      '<button class="btn' + (view.teamMode === "boss" ? " primary" : "") + '" data-mode="boss">Contre un Élément</button></div>';
-
-    if (view.teamMode === "boss") {
-      h += elemTeamsPanel();
-      return h;
-    } else {
-      var SLOT_ROLES = [["DPS"], ["BREAK"], ["SUPPORT", "REGEN"], ["HEAL"]];
-      h += coachHead() +
-        '<div class="card pickcard"><div class="row4">' +
-        view.teamSlots.map(function (v, i) {
-          return '<div class="f"><label>Aniimo ' + (i + 1) + "</label>" + aniPicker("ts" + i, v, null, SLOT_ROLES[i], true) + "</div>";
-        }).join("") + "</div>" +
-        '<p class="rank">Les conseils s\'adaptent à ta composition : forces, faiblesses et rotation sont recalculés à chaque changement.</p></div>' +
-        coachGrid(view.teamSlots.map(findAni).filter(Boolean));
-    }
-
-    var T = teamMembers();
-    if (!T) return h;
-    var A = analyse(T.members, T.main);
-    if (T.boss) {
-      var bch = chartOf(T.boss.elem);
-      var hitters = T.members.filter(function (a) {
-        return elemsOf(a).some(function (e) { return chartOf(e).strong.indexOf(T.boss.elem) >= 0; });
-      });
-      var fragile = T.members.filter(function (a) {
-        return elemsOf(a).some(function (e) { return bch.strong.indexOf(e) >= 0; });
-      });
-      var resist = T.members.filter(function (a) {
-        return elemsOf(a).some(function (e) { return chartOf(e).resist.indexOf(T.boss.elem) >= 0; });
-      });
-      if (hitters.length) A.strong.unshift("Contre ce boss " + esc(T.boss.elem) + " : <b>" +
-        hitters.map(nameHtml).join(", ") + "</b> frappe" +
-        (hitters.length > 1 ? "nt" : "") + " en ×1,6.");
-      if (resist.length) A.strong.push("<b>" + resist.map(nameHtml).join(", ") +
-        "</b> résiste" + (resist.length > 1 ? "nt" : "") + " à ses attaques " + esc(T.boss.elem) + ".");
-      if (fragile.length) A.weak.unshift("<b>" + fragile.map(nameHtml).join(", ") +
-        "</b> prend ×1,6 du boss : sors-le" + (fragile.length > 1 ? "s" : "") + " dès qu'il cible.");
-      if (T.bt && T.bt.key === "raid") A.weak.push("Combat long : garde une réserve d'EP pour le soin, le burst ne suffira pas seul.");
-      if (T.bt && T.bt.key === "entrainement") A.strong.push("Cible immobile qui ne riposte pas : tu peux enchaîner le cycle sans jamais reculer.");
-      if (T.bt && T.bt.key === "alpha") A.weak.push("Zones au sol et phases multiples : replace-toi entre deux compétences plutôt que de cracher tout le burst d'un coup.");
-    }
-
-    h += '<div class="grid cards4' + animClass() + '" style="margin-top:14px">';
-    T.members.forEach(function (a, mi) {
-      var isMain = a.name === T.main.name;
-      var why = T.notes[a.name];
-      var isPinned = pins().indexOf(a.name) >= 0;
-      h += '<div class="card teamcard fxi' + (isMain ? " main" : "") + '" style="--i:' + mi + '">' +
-        '<div class="icocell">' + aniLink(a, icon(a, 44)) + "<div><b>" + aniLink(a, nameHtml(a)) + "</b>" +
-        '<div class="chips">' + a.elems.map(elemChip).join(" ") + " " + roleChip(a.role) + "</div></div>" +
-        (view.teamMode === "auto" && !isMain
-          ? '<button class="pinbtn' + (isPinned ? " on" : "") + '" data-pin="' + esc(a.name) +
-            '" title="' + (isPinned ? "Ne plus garder cet Aniimo" : "Garder cet Aniimo dans l\'équipe") +
-            '" aria-pressed="' + isPinned + '">' + (isPinned ? "★" : "☆") + "</button>"
-          : "") + "</div>" +
-        (isMain ? '<div class="tag">Aniimo principal</div>' : (isPinned ? '<div class="tag pin">Gardé</div>' : "")) +
-        '<dl class="kv mini"><dt>ATK</dt><dd class="mono">' + a.atk + '</dd><dt>BREAK</dt><dd class="mono">' + a.brk +
-        '</dd><dt>REGEN</dt><dd class="mono">' + a.regen + "</dd></dl>" +
-        '<p class="tr">' + esc(a.traitFr || a.trait) + "</p>" +
-        (why && why.length ? '<p class="why"><span class="lbl">Pourquoi lui</span>' + esc(why.join(" · ")) + "</p>" : "") +
-        "</div>";
-    });
-    h += "</div>";
-
-    h += '<div class="grid two" style="margin-top:14px">' +
-      '<div class="card"><h3>Points forts</h3><ul class="bul good">' +
-      A.strong.map(function (s) { return "<li>" + s + "</li>"; }).join("") + "</ul></div>" +
-      '<div class="card"><h3>Points faibles</h3><ul class="bul bad">' +
-      A.weak.map(function (s) { return "<li>" + s + "</li>"; }).join("") + "</ul></div></div>";
-
-    h += '<h2 class="sec">Rotation conseillée</h2><ol class="steps">';
-    A.rotation.forEach(function (r, i) {
-      h += "<li" + (r.main ? ' class="hl"' : "") + '><span class="n">' + (i + 1) +
-        '</span><span class="who"><b>' + esc(r.who) + "</b></span><span>" + r.what + "</span></li>";
-    });
-    h += "</ol>";
-
-    h += '<h2 class="sec">Couverture élémentaire</h2><div class="card"><div class="cover">';
-    ELEM_ORDER.forEach(function (e) {
-      var ok = A.covered.indexOf(e) >= 0;
-      h += '<div class="cv' + (ok ? " on" : "") + '">' + elemChip(e) + "<span>" + (ok ? "×1,6" : "—") + "</span></div>";
-    });
-    h += '</div><p class="note" style="margin-top:10px">Table des types : chaque élément inflige ×1,6 à deux ou trois autres. Une case grise n\'est pas rédhibitoire — elle veut dire que l\'équipe frappe en neutre sur cet élément.</p></div>';
+    var h = '<div class="head"><h1>Team</h1></div>';
+    h += elemTeamsPanel();
     return h;
   }
 
@@ -2513,7 +2489,7 @@
       '<div class="row4 pickrow" style="margin-top:10px">' +
       '<label class="f"><span>Couleur du cadre</span><input type="color" id="hwcolor" value="' + esc(homeWarnColor()) + '"></label>' +
       '<label class="f check" style="align-self:end"><input type="checkbox" id="hwhalo"' + (homeWarnHalo() ? " checked" : "") +
-      '> <span></span> Effet de halo (pulsation)</label></div>' +
+      '> <span></span> Effet animé sur le contour</label></div>' +
       '<div class="actions" style="margin-top:10px">' +
       '<button class="btn primary" id="savehw">Enregistrer</button>' +
       '<button class="btn" id="resethw">Revenir au message d\'origine</button></div></div>';
@@ -2756,7 +2732,7 @@
         '<div class="row4 pickrow" style="margin-top:8px">' +
         '<label class="f"><span>Couleur du cadre</span><input type="color" data-bf="color" value="' + esc(b.color || "#F0A82C") + '"></label>' +
         '<label class="f check" style="align-self:end"><input type="checkbox" data-bf="halo"' + (b.halo ? " checked" : "") +
-        "> <span></span> Effet de halo (pulsation)</label>" +
+        "> <span></span> Effet animé sur le contour</label>" +
         "</div>";
     } else if (b.type === "list") {
       body = '<div class="f wide"><label>Éléments (un par ligne)</label><textarea data-bf="items" rows="4">' +
@@ -3258,6 +3234,8 @@
       '<div class="f"><label>Métiers Aniimo</label><div class="checks">' + S.jobs.map(function (j) {
         return '<label class="f check"><input type="checkbox" data-job="' + j.key + '"> <span>' + j.icon + " " + esc(j.name) + "</span></label>";
       }).join("") + "</div></div>" +
+      '<div class="f"><label for="a-joblevel">Niveau de métier réel (voir wiki.aniimo.com — pas forcément le niveau max)</label>' +
+      '<input id="a-joblevel" type="number" min="0" value="' + esc(cur.jobLevel || "") + '"></div>' +
       '<div class="f"><label>Icône</label><div class="iconedit">' +
       '<input id="a-img" placeholder="URL ou data:image/… — vide = pastille générée" value="' + esc(cur.img || "") + '">' +
       '<button type="button" class="btn" id="pickimg">Choisir un fichier…</button>' +
@@ -3583,7 +3561,7 @@
   function adminVotes() {
     var T = tally();
     var ranked = allScores().filter(function (r) { return isFinal(r.a); });
-    var best = ranked.length ? ranked[0].s : 0;
+    var bestMap = groupBestOf(ranked);
     var rows = Object.keys(T).filter(function (n) {
       var t = tallyOf(n); return t.up || t.down;
     }).sort(function (x, y) {
@@ -3617,7 +3595,7 @@
       var a = findAni(n); if (!a) return;
       var t = tallyOf(n), sc = null;
       ranked.forEach(function (r) { if (r.a.name === n) sc = r; });
-      var band = tFix()[n] ? bandByKey(tFix()[n]) : (sc ? tierOf(sc.s, best) : null);
+      var band = tFix()[n] ? bandByKey(tFix()[n]) : (sc ? tierOf(sc.s, bestMap[grpOf(sc.a.role).key] || 0) : null);
       var i = band ? TIERS.map(function (x) { return x.k; }).indexOf(band.k) : -1;
       var dir = t.up === t.down ? "" : (t.up > t.down ? "up" : "down");
       var target = i < 0 || !dir ? null
@@ -3701,7 +3679,7 @@
   /* ---------------- admin : Tiers List ---------------- */
   function adminTiers() {
     var ranked = allScores().filter(function (r) { return isFinal(r.a); });
-    var best = ranked.length ? ranked[0].s : 0;
+    var bestMap = groupBestOf(ranked);
     var q = (view.q || "").toLowerCase();
     var rows = ranked.filter(function (r) { return !q || r.a.name.toLowerCase().indexOf(q) >= 0; });
     var fixed = Object.keys(tFix()).length;
@@ -3715,7 +3693,7 @@
       "<th></th><th>Aniimo</th><th>Rôle</th><th>Colonne</th><th>Calculé</th><th>Palier imposé</th>" +
       "<th>Phrase affichée</th></tr></thead><tbody>";
     rows.forEach(function (r) {
-      var a = r.a, auto = tierOf(r.s, best), cur = tFix()[a.name] || "";
+      var a = r.a, auto = tierOf(r.s, bestMap[grpOf(a.role).key] || 0), cur = tFix()[a.name] || "";
       h += "<tr data-tani='" + esc(a.name) + "'>" +
         "<td>" + icon(a, 28) + "</td>" +
         "<td><b>" + esc(a.name) + "</b><br><span class='rank'>score " + r.s + "</span></td>" +
@@ -3822,8 +3800,17 @@
     wip: "l'illustration d'attente", home: "le journal des mises à jour", custom: "les blocs de la page",
     admin: "aucun effet"
   };
+  var INFO_FX_WHAT = {
+    raretes: "les cartes de score potentiel", aniipods: "les cartes d'objets de capture",
+    elements: "les cartes de la liste des Aniimo", formes: "les blocs météo et la carte des Nutures",
+    oeufs: "les cartes d'œufs", braquage: "les cartes de rangs du braquage"
+  };
   function effectPages() {
-    return tabs().map(function (t) { return { key: t.id, name: t.label, what: FX_WHAT[t.kind] || "le contenu de la page" }; });
+    var base = tabs().map(function (t) { return { key: t.id, name: t.label, what: FX_WHAT[t.kind] || "le contenu de la page" }; });
+    var infoRows = INFO_TAGS.map(function (tg) {
+      return { key: "informations:" + tg.key, name: "Informations > " + tg.label, what: INFO_FX_WHAT[tg.key] || "le contenu de la rubrique" };
+    });
+    return base.concat(infoRows);
   }
   function adminEffects() {
     var FX = S.effects || [], SP = S.speeds || [], PG = effectPages();
@@ -3891,7 +3878,7 @@
   var HERO = null;
   function heroPicks() {
     if (HERO) return HERO;
-    var pool = S.aniimos.filter(function (a) { return a.img; });
+    var pool = activeAniimos().filter(function (a) { return a.img; });
     var out = [];
     for (var i = 0; i < 4 && pool.length; i++) {
       out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
@@ -3963,7 +3950,7 @@
      lu, sauvegardé ou copié par quelqu'un qui sait utiliser les outils de
      développement. Ce panneau décourage, il ne verrouille pas. */
   function protect() {
-    var d = { rightclick: true, select: false, dragimg: false, consoleWarn: false, blockviewsource: true }, p = S.protect || {};
+    var d = { rightclick: true, select: false, dragimg: true, consoleWarn: false, blockviewsource: true }, p = S.protect || {};
     for (var k in d) if (p[k] !== undefined) d[k] = p[k];
     return d;
   }
@@ -4027,6 +4014,16 @@
     var k = (e.key || "").toLowerCase();
     if ((e.ctrlKey || e.metaKey) && k === "u") e.preventDefault();
   });
+  /* glisser-déposer d'une image (clic gauche maintenu) : la classe noimgdrag couvre Chrome/Safari,
+     ce gestionnaire couvre les navigateurs qui ignorent -webkit-user-drag (Firefox notamment).
+     On laisse passer les vignettes de la Tiers List ([data-drag]) : leur glisser-déposer sert à
+     réordonner le classement, pas à récupérer l'image. */
+  document.addEventListener("dragstart", function (e) {
+    if (!protect().dragimg || view.tab === "admin") return;
+    if (!e.target || e.target.tagName !== "IMG") return;
+    if (e.target.closest("[data-drag]")) return;
+    e.preventDefault();
+  });
 
   function adminLockCard() {
     var set = !!(S.meta && S.meta.adminHash);
@@ -4047,7 +4044,7 @@
 
   function renderRail() {
     var c = {};
-    S.aniimos.forEach(function (a) { c[a.role] = (c[a.role] || 0) + 1; });
+    activeAniimos().forEach(function (a) { c[a.role] = (c[a.role] || 0) + 1; });
     var groups = [];
     tabs().forEach(function (t) { if (!t.hidden && groups.indexOf(t.grp) < 0) groups.push(t.grp); });
     var h = '<div class="brand"><b>Aniimo France</b><span>Codex</span></div>' +
@@ -4091,20 +4088,19 @@
 
   /* étiquettes de la page Informations : cliquer l'une d'elles affiche la note */
   var INFO_TAGS = [
-    { key: "roles", label: "Rôles" },
     { key: "raretes", label: "Raretés" },
-    { key: "formes", label: "Formes" },
+    { key: "formes", label: "Météo & Prismana" },
+    { key: "regional", label: "Formes Régionales" },
     { key: "aniipods", label: "Aniipods" },
-    { key: "statistiques", label: "Statistiques" },
     { key: "elements", label: "Éléments" },
     { key: "oeufs", label: "Œufs & Éclosions" },
     { key: "braquage", label: "Braquage d'Œuf" },
   ];
   /* ================= Braquage d'Œuf : contenu détaillé de l'onglet Informations ================= */
   var BRAQUAGE = {"icons": {"rank1": "data:image/webp;base64,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", "rank2": "data:image/webp;base64,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", "rank3": "data:image/webp;base64,UklGRrQXAABXRUJQVlA4WAoAAAAQAAAAXAAAXwAAQUxQSB4KAAABGQVpG7Cw3Ynof9TlmTVhff9//S05u1teKLdhZmZmZmZmZoWKmZmZmZmZmZlpoczcz+f7O5jqZ9F901U3p7Zq3WRUR5ZvbtWCqjtZN3m6qk/GHrmyVQx25BlZBnXK8F1VfpV7c93IMrj+CTejurLul3Wd7z9Qu5vjyvpmVEGNO+WOreov6za/sqzbjFvbqpurOqqgjm4iJmACzpRlfGYf6lp9kLdlWJ3NlXo97+nGvS8/xOp0OT7Yk7l3PJ4HdEXeT1ajsb9zz2Z2FsNdek6X6/2tMpYf6Gq8imvUMr6V2/R2WkvaauFADwzt6dy96Zx+/gzuzTrgQMuKc54e5tfset2ga3edbp6C6V/VG3sj33uRM3oY6VfUMPY9V+VW3LabdR0uX0yGYMhAXH9Tr+CFvbRzw6GtDHUY+lyB23dPbssJkb7hSNW+MYzE8/iLp/XiPoCDKwHHlqv2T4/trsRZBocAsYAAacMY38QTe2ppwzJTGGhX5r48mOPT2jgEZIFBaP0w+E7uw5UIw3IKOsyGO3U/rlJ65iAxCARJIcRga+Mn3K87YnMZwUCuxx9evfTDCEYgAIZOAwYgfX7mHpwaXSbC0LhVN4l+MEooDVVrECECw9BzM24RcXkA/TncgrPqVUKs1SWmIkAQgvRX7NfPpnfpDJgLXxeaRCFUJUQJ3QIEE8MQfuPCuHQE9n0LEiBALDCAoVNSIFHAcPEjuDQJhstzhUAgCgMgkQJMDYwxoBAJbG+wtAJMASuBaFPCAiPVggQEJbOlKd/D+8FgqCYCdphCQqcEIBCA9fdiFktIG87pXRBJF0jAAAYEQqcRQBCEsOfdzNviBMj88JshYASCCAGEIEAABCIECQYSqsccGrNIZuCVYURACSEgAZBQlyBlAKlayKuZJYtB6PnRnTkJSqQUCYsuBIHUQuaHXsm8LUKgzV/Xq6MHEgQUDBUhE5miU1BKDf93kflsYSTj9JkRCBAkAFKRMKlEUpFImQIIz+e9ZUFJej7xHa0lqFILhIAEkHRBhEgZIB3p56e9gLVpFiBt4+QL0YSQJEqgAAkTGIwQAxhBEgWSEJ7RW7NNFtJ4ApeZBwxgQikYCRiBAAgEIRIgghJQzXzPMxrXs4B+7fw/QCOAoChEQGIQQnc0IAQDJpACQngql00/EfQ8hrcxTxFJSIAQIgEkIKkABowQSTChAm08/4WGrUlC1t7VQ6GBkEAEpB4mCKWh0xgBDGUgwKO7WN9PQGjcLYRQFZMAygIFAQRBxQRFFQRo3LF922CXQ39tbhmiCghIGRAFRVSpCiCdCQlAQAZuys/sfsu+2BH56S+aCUmAAKmQUFXKrk5FOhMgBHMOD+opvaYf/RmHGuE2gEyYgKLUpcsOC5QFGtDcqbtwtc73M0fPrdh/0VcwhGAJgokBBaVT1EJQRStRQAESZj1/+oGuXBf/e00QIUkQJAgYShVUAEGlaugWkyDAOP+Lb9oex9rADWOGoZqQAEECgpQSO+gARCUJoTN+7wvZe3jWUoEbAAnBgs6EukgZTIGCIBASJo0aTjv/uRzanNbC8aBIA+wCLKSuinQAitTtMAHO7pLv7tBOT7XnZxAQUUxNg5NI0EK0oFDCAuWErZ2daUsh2ydVAiRMHoJGAMGgBkGSIgELiwTgyNq0b6H+q6dQlTJOEFQUBEXqFQUECGgKFDh9O4SqHNjGApBJg4AIKNAhoIDSGSbf2HCwBmtzUgQyEWQSAMsuRYNFIE4yH5HugcmtSV2sgySFSgQlKRQiYCUOk8x6nKQ7oGKQIKBSClCrhyACFn0b6Azr7wecLAWQgGBZRBAMFoCFRqoJyNbULtjcpJGu4FCRUqkLIIBCB4JBSFGGnV3TETaPolPKpDCAhonCpIIQEwiQdB3eooshp1UkUY1UFRAQxCoCipQCERCpJ7BnPRPIGSQQJUkMSCBMbigUpCoTJlqB8A6mLekYeEsEYkKnAZA4CQoYKlJNB0kKQc5I36gP0/P9NwMIghIImIBYsUCVTq3UDWJBGNsfD9M+Fdv271232aiiQACUAAoIUkq3gCAiCApIYAjffZrTRm18VJfYGiGhDIgJYII4mbVuJYAhkCAk/PYX9NNUbDfh61hrQUIoQylgCqUuRLAiiFSlrgCvYWs6bZWMv/w8/vNCF5oRJo0QkNIIgoBKVcGoIJCKCYw73zTs9qnA/of1E8/ruZ1YsRBAIIAgkwuClJIgJFSjaby2r2R31tEOnXzMW/jc51AJQoBQVwABVRAsAQuRiYPyknbX13vqmX7Byaf98kX3jwEI9YAEVBYuqCBACIgKkDa8s08dNrfSAbPdQ7tv4FnQACkVNABBUScDAawjIgSF8GL2zN7HtHUl061dPungnICKAEFIFAVQi0gU1AAChITO8dBns3e3Z9KkwT+d1QwgiRCAUAqhNJhIaaQWDCSQQH/kDnHCKRtOBDi7Pn/PEKQuikokANEYSoMQiQgIVpHb9nlrR7ZHFjznt/ZNtSPEBCIQQxmpAaEqGEwS0P6k72r7fnXDhdm+5U4xIAmAGMqAMVINQjCAEIkGIInyt0c2fnV7ZBHH/o+uX5MEARKEGLqtVAshaIsASuTU49uvbq+5GAz8Jk3UBFECYLpCpwABzGAAgjDb+Nd2+tEbA4sq+y4LEEADoW4MndGAoTSEekA+/uj56QfmLg5juwb/gSBAJKTGQkNVCJ0C/PuRHNgYZbGHHLcPICAEqQvBFNGuCSUIR07I2sZ8YPHH8VsOhGqABFOEuokAEkmhBEE2Tmlr8/ngEigHEBBUAYOQWqcEIZhoQsKwlmE+ytIOw2yrSIAEQBZisAgF9a0ZOLpUMj+8lxAIwQAYkExEDIAICYf3igyy5A573h6GqsHUAhgMFACGaOT/z8OE5Zn5/teWsSGmIAVg6DQgkaQxTv/tC8a+JVkW9B56OednaA0MgBAmjBIhQDJwsW9adzrtwzJNI3/3og4ONihkAQgEIG1w86W8qaGtT2eN5dtPh5Ofy7duDWNjMAhkAoFAmoPr530Jh+fvZ3drliwjMm2+oa9+fnsNjQFZcFpGPHSpL/7Kcba5u9U3lnUy22mzz3lSv3eJ6zZCS1SstMBgnJ143pd17JDDmzvrs5blBa3fOtj3J550ff7rk0/dByQWyQBw1DHf9H9vbmfebx7e3Jk2VmJmu3vXt4fxlOOO/5Tjr87Fj6PCsXuO/eMzzr9/fXRrc3Pn4PqsZUWQNt1d2z79wNxh4+i1R/JHs5F+/vIeRr8zc2C6s7O+szWdtrBi0xzHtY0DB+YHpp/yTPYFj7p/352DW9P1ra3p1rRvLaxwGcZxHLf3fsxn9A6/8HyGczq03s/6vvWE1VF1g4veAS710IZL7z88SxJW15FTPz9fd8lDl77MeliF19qtuQq/5p79B3tW5QPDn5+0c9ThWVYnDxw99Ae3wirtOLTW+MgiVlA4IHANAADwMgCdASpdAGAAPj0WiUMiISEYeo8MIAPEtgBmCf3f3+W8yeuv2X8d8YbS3l38++f30F/pX2AOcJ5gPOG9F39y9Qj+idRd+1XsJ/rl6dH7XfCL/YP+h+4XtSf//OJf6r+EHf5/X/xo/cD1j8Tnq/9g/bfk480+Kj70/ovLzvV+Of8x/PvYI/E/5z/lPy54UkAf51/UP9j/auQzxAP1b/3HlZeHNQC/oX9U/8n9+92T+g/7H+S/M72s/Qn/W/z3wDfy7+of7D+7/4f/4f5r5tPYL+4Psf/sE65KrnYaNJNHGZJcADgfgjsO3VPkmuQZ1SvO55VmhWGYTYnb6ZWFN7OvyPcmBdb/ym6N6kBJiBdJU7hRDNuZkb7Mxwqh/gvWJvtlB5jONZyH2Ql7GG1E0fa4dkZjVF5wP1+HyEM8i1Z9lkubUfjcvYeiffB148PDilkJGFNBYbKz7/v/ouunbfgRR8vIKayMkrWJFqaWSCc+e6tvh+slUW9tPBE2c0wFnlQGcQahKh9JTr20A6xVVur95Qz4fmNM9X6/FtnpMj9DEAD+/q+9R/zcAZbyNth5KtWM6ofFLqXch0btofMp+d/jzkUkduUEVttElv6rdPUA8q7oNknAgqYpoJkDfb0rb/DcR32uzWhbN7un0/I2hWLyhY4gfI52vjweKPTxjGsXJ20GjTbh7+j5FXKfkxOPLpLVmvXxpmS2A5FRwtnb7hqvW9c9xv/FUQmtlMfZOJQBe/U8LIiDdoPKnl3YeI9fggEfF3UvOwmYOHHvvjKl5fJnDRYV1ATkzJ+pzds2JMoGwSzk854ToElagI4g7jAhwfnm8NKULoSNc2MusJuB+tNF5tpzVTgFRNbUjcS/3Qom+Fps7GtjIG9O8j+y2p/YzLrUmRTG1lEMh8YjL7rT+fRL5o8+VOTYu7JSTnfUgQhYElLBfXIaEJ1slVOhjFfXKgYnfco3AGO7BHJ15X5TwhyrgmTZkEt4i/w1ZrWI4Dn+kBDDFMXZbDDHlE9DdQ1GBz4P+U64Hhx497lk7TapdPzf/5OEWhAU0npq2JBf2fGoNpONNo1B4LwiA1va1LciJqmZs4ypPyZsMj4NFwEF65BV/TFl90GCxIP2WyZ1uH+Uwc2KvdPrSnIT5vjpX/4xgzpvl/wcSluchEuejMTP2vN4Uif0CuzK6GPPAgnLltST491JV+KQy4T4gKYZQkIyyGAI4vl9YIIVBXiRc6twpCKUHasf67HnQCGsQP5UH20oJ08wuDJPArkuo2QLARcXtuCdf6UGfMQ6j/4tBVVcpI8XaVgfGoV6FqAoPO363E0J+gRnzYqWwYNrLyWlrMtozPehDDKEjDJs8VDk35akzjxWnDEDUIiMqc6+ll+1R4HMFwZ8jQhHI6xBPgZa3/oqZM3ewTuo0ko20pWiExhnEz/Kw77jDTK3f6V7vaA14imNB9zzkQW9cs5n6CTDKWtfhthQZUzUZouiUzLHdjn0tvnnuPS0/2WMDpoa/r453aYDyOFWReB/1VUUulsb7kBpoAoMsmhI70FpP7zjAoHpSOx4sUWICcGpeOu5klm1X3zljmNNyKFea0mBjR2YF8Nfh1VYCRvm4PP2KhzQTcP7z7h8ejSDGpewWZ7uPbwntxZhalSaMoyHXqVKdXegSWY7Mlyfl631iD9zbJIRQw+9cmD6WE7cauoJwEvAb4IHFm3Ud4qot5GtA0RByf4SMd6fCrpD08NLMF9sA4SkqbHnAren+BfOphWBdz5kjhvHHo/6V9hfsOhuTYNcJLNmtPVy3VzLdRYa75/8O5R4ijdn2APQko3PZHGsRX7lFuB+yxohBo9tskrOCdl17mHrOsRFR6BosVNpWNIH3vsJsfI/Q8b/u4U7y2rgZGZuvwDKczrcLGZIj/CpgeJ9DHg/5NX7183t5wLri8ZzsNWys3E2lqYfF2rzxYasIQ+Xecqfuj+/mb9rkw+can1imqSQvmj9CxZxn/4Qkbo7W8g+8OcrQZ/8ja5M/ZlGKjcX/AsrGYvXnUF7/PMgaErsgKOVfB9wPb6YdFn7LBy6nNL6+WBcpgAJdpOfqmlJ9IpMLOu9+EPuP7fsYqFu9komlKLV1mvbSYz/GMSStSJXOC/m39EJIiQDiCyo4frjKLBwAjtXKOST1v+12eMZkV5kCdU4p9G8gR/7C+VEqRv5B/V4aZwYSkBUJ1UKhT8wkm4zWJZiiYZZ9TxUfDLchYHfXwF5f39WMqTnu4zq7Xl9Vz0g4M8kFvrQ2wy+550KqK4Wp5Riqu3sNhKNvirvo2CD57vygczgZTc4EwUuCmR5/ni9OleAKmFnmaYGB1L8325DYLfLci/yIus3Ux3LAIOipm75ykhmfT3lEKhb4erWLZ0bdXOLXgbR7OIyiyUWw8kHwr+1N46Ds2gV+gPH1AtjtlpYyk3jEwLOV54cpWbMNK9/HvlI4NhSWtiW4kXV9V40t279I+H8fsLO5MEJFw8vLPRbJZebQWhuh9CVlODIwFfOLNSWR6thefUADWlrzyyutqzcLKXaGNDz+4xafd3SykYmZwDQ7T33IV/1VcNvEf623Q2yhvZxb84Zm4Vg52vYZlx/X+Ccq80RUnYehGg6qaVXMXLHbq/veJq1te7eMJ+MF/anXQetsvQ5/OPymOUOOaQRp+y2SbuHndVWU9R2ng7UdeWmkiH+8ACncj3jzkbk+etw/Dd8egNaBk47F/q79zKgvon3GN4glPgc/JFX9ZNK4+58zsQ/kHOJV/1nd6XsYlxPA7ZBj73Oazt1r6EPCbTafrH1FdMokv5/YxmmFjcIjLMTiGl+RTttyXRPp/WT8U0l96X9mBewHVN5czoTy5/SRRL8V1mCYt8YmcVuEbxqPGi54wjSD9pxpnSfOHl1D4q3SmhDMEmxtmkRON0X3GT8eTbHm7RCmDFFKX/3CQ8qM7ngBf3r7G0bc1xfiPT+ToB9TIphR9syLbZonbL4Aw3ovpZRC1seDagcZ9oYkt3V8NDoJDzXRSR101RgYOcuWT6kX5POcQq3i18om+L1fzJltQ2DWpJ/EpG1mBm+tZx+Id9/pKKqoPpO2fkkzRMgGHE+b8QZ4/dvV+E8kmj7QpUmHy06SXPXUXlNkiPsLPKQJc+5vnrXzd6mOH1iS8Mca5xsW7nFJVk/nAm/UfjXnqGzLfjLBwP3wgNSKKnoIStXz3cIsMNPlr11Uzk6vwjY9/t96AYp8xSj2ZLEAp/7+rQiKqVhtOiO5A7J8yLhKrPwOQvbm0VTRs/A6343e1bVHl8by4291yTztSIwenaztVrxM9YhHzL2KU2//z16iRscS98iDyHz+3ebzO0K3H7kOBLhCdIy1oqkqX78e4TCZYE3PdkFNI2Z2DI08kVsta6DPGT+N32wj8MCnMZHIC8n5uIB8IAViU8Q14TiyMJB7x2VeMgehX+tYLzTNu0yhc9Nvvf6T5ZF04cf57Cpv6TWHWmCFMB7Z/aFhzrBmO9yFnsoBmPsMfA+O2S1cK6vrghVH4VSG56L+5Knr6KhQhzAYQqAAIMl/SD7AqtDjg/d5uAzvT5rmGHszs+FlNFavzYnh6CHBIIr9IyJC0Pm9LD/xaUBsCrFgD23pubuQtCMsSee7zKtqcB04+4sfSp6v9B71Wm7eo9UUdwSXBMd6GHnX1X75MeSgs77sPrvyNFSJGHvgwFbayvAh2mN7b1C3192A+9C4ZmF3dXLiBrspi/e1rJ4T2nGXjzMv35sK6QehLCBfl3eAZ4uyEijQdKjGJYO4xXdCyuxM6nM1yjn8//8NCaS1+JgaXAqkhc3Z1MaCvXJS0/yWhHgRt/gf68I+zv1AdAJjwyL55rhefy2zY+UmgZwE5oaZ3EX2fNBmMPXsm4hw+eQAsgq0Txi7QkO7T4OVSl0in2wtSbc//wOjRhZlhKQ3011f/UQ2RG9CE8P836g6vmrMqFxHlqLUYmaU0VP0CfPjIj7b7DfXos52agchUNXz0wQ9PlA/tJvTKPVYttWhXjjkJalsXc4tlhahPHYVdPwcH4pyHGOT8JG+wY2RDiFzP2SB6eBpQhLL90w3mBLPw0UXRhyVy4vc7JJ0wNBsbLPnWfCks21zaZYvd2ZYV1idXnuDEfi0RapMMVQSFfTD0ypg+1HxmyIKEjH+ftWoWb3kaw08TtQ9ur8xaWGDdKBWIaDzA4DQPULuqHhZwggJyeeZtNiDIPs4Bl/mQQUOdDgr+N1e6Dsrqc9Kdh7lbqEOFlU9JjGP3ED1/eV8HmoiTuLv2oe8tjNdef8G/YO/VHn4by1muNPl8uwdPnrZpFFLCHlWO+uG+es8qqGx0qj1LU3s3v8GPt60TTEDTtBvT5eumWKQ8ZvAaEo6F+mUgFwx4+pOcZDwhiNIOD60YlruTkpQzRc6JuP5E1KaRd6GYkoGlnrQxxeZi2mGmjl2mSE9TLsXna9DGl1f4yG3bt/Yq1pieSjOOdOZs+HlDfeMZC0mkkN7pA91+q4ghYcBv6SfjFbFKfqTqOKFS8iQFw6+Qr+/yLq+kPEFNCJ9xN60cmXZh5p0534iqqKkc5BM0C6aYZt3NHKsiXbHUet6WugAAAAAA==", "rank4": "data:image/webp;base64,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", "rank5": "data:image/webp;base64,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", "rank6": "data:image/webp;base64,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", "rank7": "data:image/webp;base64,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", "coin": "data:image/webp;base64,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", "bonoeuf": "data:image/webp;base64,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", "bonsuper": "data:image/webp;base64,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"}, "ranks": [{"icon": "rank1", "name": "Chasseur d'œufs de rookie", "div": "3 DIVISIONS", "color": "#9CA3AF"}, {"icon": "rank2", "name": "Remontée de l'œuf scout", "div": "3 DIVISIONS", "color": "#2DD4BF"}, {"icon": "rank3", "name": "Élégant Pro Egg", "div": "4 DIVISIONS", "color": "#3B82F6"}, {"icon": "rank4", "name": "Chercheur d'œufs d'élite", "div": "4 DIVISIONS", "color": "#8B5CF6"}, {"icon": "rank5", "name": "Expert Egg Raider", "div": "5 DIVISIONS", "color": "#D946EF"}, {"icon": "rank6", "name": "Maître de braquage d'œuf", "div": "5 DIVISIONS", "color": "#F59E0B"}, {"icon": "rank7", "name": "Empereur d'", "div": "RANG APEX", "color": "#C89434"}], "shop": [{"icon": "coin", "name": "Pièce d'œuf de coquille", "desc": "La devise de magasin que vous gagnez à partir de runs"}, {"icon": "bonoeuf", "name": "Bon d'œuf", "desc": "Échange hebdomadaire, jusqu'à 10× par semaine"}, {"icon": "bonsuper", "name": "Bon d'achat Super Egg", "desc": "Échange hebdomadaire, jusqu'à 10× par semaine"}], "talents": {"commun": {"label": "Commun", "items": [["Grève critique I", "Boost de dégâts +5%"], ["Grève critique II", "Boost de dégâts +5%"], ["Tampon de dégâts I", "Réduction des dégâts +5%"], ["Tampon de dégâts II", "Réduction des dégâts +5%"], ["Évasion d'urgence", "Augmentation de la vitesse de déplacement en baisse"], ["Récupération rapide I", "Vitesse de récupération de l'endurance +5%"], ["Récupération rapide II", "Vitesse de récupération de l'endurance +5%"], ["Renfort sûr", "Egg Boat Limite de charge sûre +10 kg"], ["Charognard I", "Recherche d'articles plus rapide"], ["Charonnier II", "Recherche d'articles plus rapide"], ["Charonnier III", "Recherche d'articles plus rapide"], ["Corps Fort I", "Élan max +10"], ["Corps fort II", "Élan max +10"], ["Œuf rapide I", "Vitesse de déplacement +10% en fileté avec un œuf"], ["Œuf rapide II", "Vitesse de déplacement +10% en fileté avec un œuf"], ["Volonté Tenace", "Perte HP plus lente pendant la descente"], ["Œuf Dur I", "Réduction des dégâts +10% en double avec un œuf"], ["Œuf dur II", "Réduction des dégâts +10% en double avec un œuf"]]}, "rare": {"label": "Rare", "items": [["Entièrement Chargé I", "Charge +4"], ["Entièrement Chargé II", "Charge +4"], ["Entièrement Chargé III", "Charge +6"], ["Marchandises à moitié prix I", "Egg Heist Shop offre 1 article supplémentaire à moitié prix."], ["Marchandises à moitié prix II", "Egg Heist Shop offre 1 article supplémentaire à moitié prix."], ["Expansion sûre I", "Bateau d'œuf Capacité sûre +1"], ["Expansion sûre II", "Bateau d'œuf Capacité sûre +1"]]}, "epique": {"label": "Épique", "items": [["Œuf Bateau Coffre", "Déverrouille la fonction Egg Boat Safe."], ["Marchandises à moitié prix III", "Egg Heist Shop ajoute 2 articles à moitié prix supplémentaires."], ["Auto-relance", "Peut s'auto-réviver tout en étant abattu si un coéquipier est en vie. Une fois par match."]]}}, "intro": "Une seule course est une course contre deux autres joueurs et l'environnement. Access s'ouvre une fois que vous atteignez le Niveau Pathfinder vétéran, puis chaque match exécute le même arc :", "steps": [{"n": 1, "title": "Déposer dans les îles perdues", "desc": "Trois Pathfinders entrent dans l'arène en temps réel - vous êtes en compétition l'un contre l'autre et les menaces PvE de la carte."}, {"n": 2, "title": "Rassemblez-vous et infiltrez-vous", "desc": "Collecter les fournitures sur les îles, puis enfreindre la zone interdite où le prix est organisé."}, {"n": 3, "title": "Saisissez l'œuf géant Darkler", "desc": "Concourez pour réclamer l'œuf Giant Darkler – l'objet tout le mode est construit autour."}, {"n": 4, "title": "Évacuer par bateau", "desc": "Atteindre le bateau et sortir en toute sécurité pour faire la banque de ce que vous transportez. La façon dont ce paiement est partagé est la torsion de base du mode – voir les règles ci-dessous."}], "rankdesc": "Chaque course marque vers un rang saisonnier. Sept niveaux se situent entre un chasseur d'œufs frais et le apex – les rangs supérieurs laissent tomber des boîtes de récompense plus riches.", "talentdesc": "Entre les matchs, vous dépensez vos revenus sur les talents de heist d'œuf – des avantages permanents qui portent dans chaque future course. Il y en a 28 à travers trois raretés, à partir de petits boosts de statistiques à une auto-relance une fois par match.", "shopdesc": "Egg Heist dirige sa propre boucle de récompense. Les pièces d'œufs alimentent la boutique de braquage d'œufs, et vous dépensez bons sur une cadence hebdomadaire – chaque type de bon jusqu'à dix fois par semaine. La boutique elle-même stocke Gear, Imprints, Eggs, Keys et plus encore."};
-  function brqRankCard(r) {
-    var cls = "brqrank" + (r.icon === "rank7" ? " apex" : "");
-    return '<div class="' + cls + '" style="--rc:' + r.color + '"><img src="' + BRAQUAGE.icons[r.icon] + '" alt="" loading="lazy">' +
+  function brqRankCard(r, i) {
+    var cls = "brqrank fxi" + (r.icon === "rank7" ? " apex" : "");
+    return '<div class="' + cls + '" style="--rc:' + r.color + ';--i:' + i + '"><img src="' + BRAQUAGE.icons[r.icon] + '" alt="" loading="lazy">' +
       '<b>' + esc(r.name) + '</b><span>' + esc(r.div) + '</span></div>';
   }
   function brqStepCard(s) {
@@ -4134,7 +4130,7 @@
       '</div>' +
       '<div class="brqsec">' + skHead("Escalader les rangs") +
         '<p class="brqdesc">' + esc(BRAQUAGE.rankdesc) + '</p>' +
-        '<div class="brqranks">' + BRAQUAGE.ranks.map(brqRankCard).join("") + '</div></div>' +
+        '<div class="brqranks' + animClass("informations:braquage") + '">' + BRAQUAGE.ranks.map(brqRankCard).join("") + '</div></div>' +
       '<div class="brqsec">' + skHead("\u00c9conomie & Boutique") +
         '<p class="brqdesc">' + esc(BRAQUAGE.shopdesc) + '</p>' +
         '<div class="brqshop">' + BRAQUAGE.shop.map(brqShopCard).join("") + '</div></div>' +
@@ -4145,20 +4141,20 @@
   }
 
   /* ================= Éléments : contenu détaillé de l'onglet Informations ================= */
-  function elemRosterCard(a) {
+  function elemRosterCard(a, i) {
     var art = a.artBig ? '<img src="' + a.artBig + '" alt="' + esc(a.name) + '" loading="lazy">' : icon(a, 64);
     var els = a.elems || [];
     var c1 = S.elements[els[0]] || "#888";
     var c2 = S.elements[els[1]] || c1;
     var inner = '<div class="elemrosart">' + art + '<span class="elemrosno">N°' + esc(a.no) + '</span></div>' +
       '<div class="elemrosinfo"><b>' + esc(a.name) + '</b>' + roleChip(a.role) + '</div>';
-    return '<div class="elemroscard" style="--c1:' + c1 + ';--c2:' + c2 + '">' + aniLink(a, inner) + '</div>';
+    return '<div class="elemroscard fxi" style="--c1:' + c1 + ';--c2:' + c2 + ';--i:' + i + '">' + aniLink(a, inner) + '</div>';
   }
   function elementsPanel() {
     var e = view.elemInfo || "Feu";
     var ch = chartOf(e);
     var mascot = (S.elemMascots || {})[e];
-    var members = S.aniimos.filter(function (a) { return a.elems.indexOf(e) >= 0; })
+    var members = activeAniimos().filter(function (a) { return a.elems.indexOf(e) >= 0; })
       .sort(function (a, b) { return parseInt(a.no, 10) - parseInt(b.no, 10); });
     var h = '<div class="elempick">' + ELEM_ORDER.map(function (k) {
       return '<button type="button" class="elempickbtn' + (e === k ? " on" : "") +
@@ -4179,7 +4175,7 @@
       (ch.resist.map(elemChip).join("") || '<span class="etcempty">—</span>') + "</span></div>" +
       "</div></div>" +
       '<div class="elemtitlewrap">' + skHead("Les Aniimo " + e) + "</div>" +
-      '<div class="elemroster">' + members.map(elemRosterCard).join("") + "</div>";
+      '<div class="elemroster' + animClass("informations:elements") + '">' + members.map(elemRosterCard).join("") + "</div>";
     return h;
   }
 
@@ -4194,9 +4190,9 @@
     if (!S.scoreTiers || !S.scoreTiers.length) S.scoreTiers = JSON.parse(JSON.stringify(SCORE_TIERS_DEFAULT));
     return S.scoreTiers;
   }
-  function scoreCard(t) {
+  function scoreCard(t, i) {
     var img = (S.qualityIcons || {})[t.key];
-    return '<div class="scorecard" style="--rc:' + t.color + '">' +
+    return '<div class="scorecard fxi" style="--rc:' + t.color + ';--i:' + i + '">' +
       '<span class="scoreno">' + esc(t.no) + '</span>' +
       (img ? '<img class="scoreicon" src="' + img + '" alt="" loading="lazy">' : "") +
       '<b class="scorename">' + esc(t.name) + '</b>' +
@@ -4209,8 +4205,340 @@
       '<div class="elemtitlewrap">' + skHead("Score Potentiel") + '</div>' +
       '<p class="scoreintro">Triez ou filtrez votre collection par score potentiel et chaque Aniimo montre l’un des quatre ascendants grades, chacun avec le badge de qualité du jeu. Un Aniimo fraîchement pris se lit sans appréciation jusqu’à ce que vous l’évaluiez pour révéler la note.</p>' +
       '<p class="brqdesc">Un Aniimo sauvage atterrit sur Commun la plupart du temps, et Parfait seulement ~0,8%.</p>' +
-      '<div class="scoregrid">' + scoreTiersList().map(scoreCard).join("") + '</div>' +
+      '<div class="scoregrid' + animClass("informations:raretes") + '">' + scoreTiersList().map(scoreCard).join("") + '</div>' +
       '</div>';
+  }
+
+  /* ================= Formes : formes météo + carte des Fleurs de Leyline ================= */
+  var WEATHER_FORMS = [
+    { key: "pluie", label: "Pluie",
+      desc: "Rain réveille les formes épouvantables : les variantes Rainstorm et les chanteurs côtiers qui restent cachés sous un ciel clair.",
+      locs: [
+        { name: "Nimbus Fields", lvl: "5-15", rows: [
+          { ani: "Nimbi", img: "nimbi-2", form: "Forme Highland", elems: ["Vent", "Foudre"] },
+          { ani: "Turbo", img: "turbo-2", form: "Forme Highland", elems: ["Vent", "Foudre"] }
+        ] },
+        { name: "Le détroit d’Argent", lvl: "14-20", rows: [
+          { ani: "Tromber", img: "tromber-base", form: "Forme de Base", elems: ["Vent"] }
+        ] },
+        { name: "Forêt d’étoiles tombantes", lvl: "16-23", rows: [
+          { ani: "Stellarys", img: "stellarys-2", form: "Forme de Tempête de Pluie", elems: ["Ténèbres", "Eau"] },
+          { ani: "Tromber", img: "tromber-2", form: "Forme Highland", elems: ["Vent", "Eau"] }
+        ] },
+        { name: "Mer de Fleurs", lvl: "19-28", rows: [
+          { ani: "Thornblade", img: "thornblade-2", form: "Forme de Tempête de Pluie", elems: ["Plante", "Foudre"] }
+        ] },
+        { name: "Côte de Tideblossom", lvl: "45-50", rows: [
+          { ani: "Luminelle", img: "luminelle-2", form: "Forme de Tempête de Pluie", elems: ["Foudre", "Eau"] }
+        ] },
+        { name: "Baie de Crescent", lvl: "51-55", rows: [
+          { ani: "Coraliz", img: "coraliz-2", form: "Forme Highland", elems: ["Roche"] },
+          { ani: "Reefish", img: "reefish-2", form: "Forme Highland", elems: ["Roche"] }
+        ] }
+      ]
+    },
+    { key: "orage", label: "Orage",
+      desc: "Tout ce que la pluie apporte, plus les chargeurs de tempête : des formes d’orage qui n’osent se montrer que lorsque la foudre craque.",
+      locs: [
+        { name: "Nimbus Fields", lvl: "5-15", rows: [
+          { ani: "Nimbi", img: "nimbi-2", form: "Forme Highland", elems: ["Vent", "Foudre"] },
+          { ani: "Turbo", img: "turbo-2", form: "Forme Highland", elems: ["Vent", "Foudre"] }
+        ] },
+        { name: "Le détroit d’Argent", lvl: "14-20", rows: [
+          { ani: "Tromber", img: "tromber-base", form: "Forme de Base", elems: ["Vent"] }
+        ] },
+        { name: "Forêt d’étoiles tombantes", lvl: "16-23", rows: [
+          { ani: "Stellarys", img: "stellarys-2", form: "Forme de Tempête de Pluie", elems: ["Ténèbres", "Eau"] },
+          { ani: "Tromber", img: "tromber-2", form: "Forme Highland", elems: ["Vent", "Eau"] }
+        ] },
+        { name: "Mer de Fleurs", lvl: "19-28", rows: [
+          { ani: "Thornblade", img: "thornblade-2", form: "Forme de Tempête de Pluie", elems: ["Plante", "Foudre"] }
+        ] },
+        { name: "crête de Beast Fang", lvl: "23-30", rows: [
+          { ani: "Scorchhowl", img: "scorchhowl-2", form: "Forme d’Orage", elems: ["Feu", "Foudre"] },
+          { ani: "Glynsera", img: "glynsera-night", form: "Forme de Nuit", elems: ["Ténèbres", "Glace"] }
+        ] },
+        { name: "Décrètement d’Echoback", lvl: "30-38", rows: [
+          { ani: "Sherro", img: "sherro-2", form: "Forme d’Orage", elems: ["Eau", "Foudre"] }
+        ] },
+        { name: "Côte de Tideblossom", lvl: "45-50", rows: [
+          { ani: "Luminelle", img: "luminelle-2", form: "Forme de Tempête de Pluie", elems: ["Foudre", "Eau"] }
+        ] }
+      ]
+    },
+    { key: "neige", label: "Neige",
+      desc: "La neige tombe sur les trois régions les plus froides et tire les formes des Highlands touchées par la glace.",
+      locs: [
+        { name: "Prairie Driftwise", lvl: "38-42", rows: [
+          { ani: "Pomegg", img: "pomegg-2", form: "Forme Highland", elems: ["Plante", "Glace"] }
+        ] },
+        { name: "Rosetower Woods", lvl: "39-43", rows: [
+          { ani: "Pomegg", img: "pomegg-2", form: "Forme Highland", elems: ["Plante", "Glace"] }
+        ] },
+        { name: "Russet Highlands", lvl: "40-45", rows: [
+          { ani: "Baleetle", img: "baleetle-2", form: "Forme Highland", elems: ["Roche", "Glace"] },
+          { ani: "Helmut", img: "helmut-2", form: "Forme Highland", elems: ["Ténèbres", "Glace"] },
+          { ani: "Rookey", img: "rookey-2", form: "Forme Highland", elems: ["Ténèbres", "Glace"] },
+          { ani: "Waleetle", img: "waleetle-2", form: "Forme Highland", elems: ["Roche", "Glace"] },
+          { ani: "Pawney", img: "pawney-2", form: "Forme Highland", elems: ["Ténèbres", "Glace"] }
+        ] }
+      ]
+    }
+  ];
+
+  /* portrait d'une forme météo : image dédiée, sans fond coloré */
+  function formIcon(row) {
+    var src = (S.formeIcons || {})[row.img];
+    if (!src) return "";
+    return '<span class="wjico"><img src="' + src + '" alt="' + esc(row.ani) + '" loading="lazy"></span>';
+  }
+
+  function weatherRow(row) {
+    var inner = formIcon(row) +
+      '<div class="wrowmeta"><b>' + esc(row.ani) + "</b>" +
+      '<span class="wform">' + esc(row.form) + "</span>" +
+      '<div class="wchips">' + (row.elems || []).map(elemChip).join("") +
+      (row.extra ? '<span class="chip sm ghost">' + esc(row.extra) + "</span>" : "") + "</div></div>";
+    return '<div class="wrow">' + inner + "</div>";
+  }
+
+  function weatherLoc(loc) {
+    return '<div class="wloc"><div class="wlochead"><b>' + esc(loc.name) + '</b>' +
+      '<span class="wlvl">Lv ' + esc(loc.lvl) + "</span></div>" +
+      '<div class="wlocrows">' + loc.rows.map(weatherRow).join("") + "</div></div>";
+  }
+
+  /* petites particules décoratives (gouttes, flocons, éclair) sur la vignette météo */
+  function wpillFx(key) {
+    if (key === "pluie") {
+      return '<span class="wfx" aria-hidden="true">' +
+        [10, 24, 40, 55, 68, 82, 94].map(function (x, i) {
+          return '<span class="drop" style="left:' + x + '%; --i:' + i + '"></span>';
+        }).join("") + "</span>";
+    }
+    if (key === "orage") {
+      return '<span class="wfx" aria-hidden="true">' +
+        [12, 26, 62, 88].map(function (x, i) {
+          return '<span class="drop" style="left:' + x + '%; --i:' + i + '"></span>';
+        }).join("") +
+        '<span class="flash"></span><span class="bolt"></span></span>';
+    }
+    if (key === "neige") {
+      return '<span class="wfx" aria-hidden="true">' +
+        [8, 22, 36, 50, 64, 78, 92].map(function (x, i) {
+          return '<span class="flake" style="left:' + x + '%; --i:' + i + '"></span>';
+        }).join("") + "</span>";
+    }
+    return "";
+  }
+  function weatherPanel(w, i) {
+    var im = (S.weatherIcons || {})[w.key];
+    return '<div class="wpanel wp-' + w.key + ' fxi" style="--i:' + i + '">' +
+      '<div class="wpill">' + wpillFx(w.key) + (im ? '<img src="' + im + '" alt="" class="wpico">' : "") +
+      "<span>" + esc(w.label) + "</span></div>" +
+      '<div class="wlocgrid">' + w.locs.map(weatherLoc).join("") + "</div></div>";
+  }
+
+  /* carte interactive des Fleurs de Leyline, avec les points de collecte de Prismana */
+  var LEYLINE_SPOTS = [
+    { name: "Echoback Landing", x: 12.9, y: 25.31 },
+    { name: "Beast Fang Ridge", x: 24.19, y: 23.9 },
+    { name: "Berylline Causeway", x: 37.44, y: 23.9 },
+    { name: "Russet Highlands", x: 50, y: 19.97 },
+    { name: "Zephyrus Landbridge", x: 73.85, y: 22.64 },
+    { name: "Rosetower Woods", x: 73.85, y: 51.1 },
+    { name: "Driftwise Meadow", x: 47.93, y: 33.33 },
+    { name: "Mistwoods", x: 31.91, y: 40.88 },
+    { name: "Forêt d’étoiles tombantes", x: 12.9, y: 39.31 },
+    { name: "Nimbus Fields", x: 25.92, y: 58.02 },
+    { name: "Le détroit d’Argent", x: 23.39, y: 70.6 },
+    { name: "Blitzwood", x: 44.24, y: 63.21 },
+    { name: "Côte de Tideblossom", x: 58.76, y: 82.23 },
+    { name: "Mer de Fleurs", x: 53.81, y: 59.43 }
+  ];
+
+  function leylineSpot(sp, i) {
+    return '<button type="button" class="leyspot" style="left:' + sp.x + '%;top:' + sp.y + '%;--i:' + i + '" aria-label="' + esc(sp.name) + '">' +
+      (S.leylineIcon ? '<img src="' + S.leylineIcon + '" alt="" loading="lazy">' : "") +
+      '<span class="leyname">' + esc(sp.name) + "</span></button>";
+  }
+
+  function leylinePanel(i) {
+    return '<div class="leylinewrap fxi" id="leyline-map" style="--i:' + i + '">' +
+      '<div class="leytitle">' + (S.prismanaFlowIcon ? '<img src="' + S.prismanaFlowIcon + '" alt="" class="leytitleico">' : "") +
+      skHead("Les Nutures") + "</div>" +
+      tipNote("Passez la souris sur les icônes de la carte pour afficher le nom de chaque lieu.") +
+      '<div class="leymapbox">' +
+      (S.leylineMap ? '<img class="leymap" src="' + S.leylineMap + '" alt="Carte des Nutures">' : "") +
+      LEYLINE_SPOTS.map(leylineSpot).join("") +
+      "</div>" + prismList() + "</div>";
+  }
+
+  /* liste des Prismana par lieu de collecte, sous la carte des Fleurs de Leyline */
+  var PRISM_SPOTS = [
+    { loc: "Nimbus Fields", lvl: "5-15", names: ["Turbo"] },
+    { loc: "The Argent Strait", lvl: "14-20", names: ["Cornet"] },
+    { loc: "Forest of Falling Stars", lvl: "16-23", names: ["Stellarys"] },
+    { loc: "Sea of Flowers", lvl: "19-28", names: ["Thornblade"] },
+    { loc: "Beast Fang Ridge", lvl: "23-30", names: ["Scorchhowl", "Glynsera"] },
+    { loc: "Mistwoods", lvl: "24-33", names: ["Witchin"] },
+    { loc: "Blitzwood", lvl: "28-35", names: ["Blazen"] },
+    { loc: "Echoback Landing", lvl: "30-38", names: ["Panpanta", "Sherro"] },
+    { loc: "Berylline Causeway", lvl: "34-38", names: ["Ignitis"] },
+    { loc: "Driftwise Meadow", lvl: "38-42", names: ["Glacy"] },
+    { loc: "Rosetower Woods", lvl: "39-43", names: ["Grizbo"] },
+    { loc: "Russet Highlands", lvl: "40-45", names: ["Pawney"] },
+    { loc: "Tideblossom Coast", lvl: "45-50", names: ["Luminelle"] },
+    { loc: "Zephyrus Landbridge", lvl: "45-48", names: ["Magmarex"] },
+    { loc: "Crescent Bay", lvl: "51-55", names: ["Glameep"] }
+  ];
+
+  /* certaines espèces utilisent une forme Prismana « -3 » plutôt que « -2 » par défaut,
+     voir les clés déjà déclarées dans PRISM_EGGS plus bas */
+  var PRISM_FORM_KEY_OVERRIDES = {
+    luminelle: "luminelle-3", pawney: "pawney-3", scorchhowl: "scorchhowl-3",
+    sherro: "sherro-3", stellarys: "stellarys-3", thornblade: "thornblade-3", turbo: "turbo-3"
+  };
+  /* la forme Prismana de certaines espèces porte un second élément que sa fiche
+     de base n'a pas (ex. Stellarys de base = Ténèbres, sa forme de Tempête de
+     Pluie = Ténèbres/Eau) — repris des formes météo déjà déclarées plus haut. */
+  var PRISM_ELEM_OVERRIDES = {
+    turbo: ["Vent", "Foudre"], stellarys: ["Ténèbres", "Eau"], thornblade: ["Plante", "Foudre"],
+    luminelle: ["Foudre", "Eau"], scorchhowl: ["Feu", "Foudre"], glynsera: ["Ténèbres", "Glace"],
+    sherro: ["Eau", "Foudre"], pawney: ["Ténèbres", "Glace"]
+  };
+  function prismRow(name) {
+    var a = findAni(name);
+    if (!a) return "";
+    var lname = a.name.toLowerCase();
+    var key = PRISM_FORM_KEY_OVERRIDES[lname] || (lname + "-2");
+    var src = (S.formeIcons || {})[key] || a.img;
+    var elems = PRISM_ELEM_OVERRIDES[lname] || a.elems || [];
+    var inner = '<span class="prico">' + (src ? '<img src="' + src + '" alt="" loading="lazy">' : "") + "</span>" +
+      '<div class="prowmeta"><b>Prismana ' + esc(a.name) + "</b>" +
+      '<div class="wchips">' + elems.map(elemChip).join("") + "</div></div>";
+    return '<div class="prow">' + inner + "</div>";
+  }
+
+  function prismLoc(sp) {
+    return '<div class="wloc"><div class="wlochead"><b>' + esc(sp.loc) + '</b>' +
+      '<span class="wlvl">Lv ' + esc(sp.lvl) + "</span></div>" +
+      '<div class="wlocrows">' + sp.names.map(prismRow).join("") + "</div></div>";
+  }
+
+  function prismList() {
+    return '<div class="prismlist"><div class="wlocgrid">' + PRISM_SPOTS.map(prismLoc).join("") + "</div></div>";
+  }
+
+  function formesPanel() {
+    return '<div class="formeswrap' + animClass("informations:formes") + '">' +
+      WEATHER_FORMS.map(weatherPanel).join("") +
+      leylinePanel(WEATHER_FORMS.length) +
+      "</div>";
+  }
+
+  /* ================= Œufs & Éclosions ================= */
+  var HATCH_STEPS = [
+    { n: 1, title: "Prenez un oeuf", desc: "Les œufs apparaissent lorsque vous explorez, à partir d'événements et d'autres systèmes – chacun porte déjà les étiquettes qui décident de ce qu'il devient." },
+    { n: 2, title: "Incuber au Hatchinator", desc: "Placez-le dans le Hatchinator, l'incubateur de votre patrie, et il éclot sur une minuterie. Il éclot même des œufs de Pathfinders à proximité à portée." },
+    { n: 3, title: "Accélérez-le", desc: "Caressez l'œuf pour couper l'attente (il y a une limite quotidienne, et les amis peuvent caresser le vôtre aussi), dépenser des articles d'accélération, ou rouler le bonus de week-end - le temps d'éclosion est divisé par deux du vendredi au dimanche." },
+    { n: 4, title: "Rencontrez votre Aniimo", desc: "L'œuf éclot dans son Aniimo – et certains œufs ont une chance d'en éclore deux à la fois." },
+  ];
+  function eggStepCard(s, i) {
+    return '<div class="eggstep fxi" style="--i:' + i + '"><span class="eggstepnum">' + s.n + "</span>" +
+      "<div><b>" + esc(s.title) + "</b><p>" + esc(s.desc) + "</p></div></div>";
+  }
+
+  /* Prismana : forme iridescente, la plus rare à l'éclosion */
+  var PRISM_EGGS = [
+    { name: "Blazen", key: "blazen-2" },
+    { name: "Cornet", key: "cornet-2" },
+    { name: "Fenmane" },
+    { name: "Fentuft" },
+    { name: "Fulmintis" },
+    { name: "Glacy", key: "glacy-2" },
+    { name: "Glameep", key: "glameep-2" },
+    { name: "Glynsera", key: "glynsera-2" },
+    { name: "Grizbo", key: "grizbo-2" },
+    { name: "Ignitis", key: "ignitis-2" },
+    { name: "Iris", key: "iris-2" },
+    { name: "Irisal", key: "irisal-2" },
+    { name: "Luminelle", key: "luminelle-3" },
+    { name: "Magmarex", key: "magmarex-2" },
+    { name: "Panpanta", key: "panpanta-2" },
+    { name: "Pawney", key: "pawney-3" },
+    { name: "Scorchhowl", key: "scorchhowl-3" },
+    { name: "Sherro", key: "sherro-3" },
+    { name: "Stellarys", key: "stellarys-3" },
+    { name: "Thornblade", key: "thornblade-3" },
+    { name: "Turbo", key: "turbo-3" },
+    { name: "Witchin", key: "witchin-2" },
+  ];
+  /* Ombrage : forme sombre, plus rare encore */
+  var SHADOW_EGGS = [
+    { name: "Blazen", key: "blazen-shadow" },
+    { name: "Cornet", key: "cornet-shadow" },
+    { name: "Ignitis", key: "ignitis-shadow" },
+    { name: "Luminelle", key: "luminelle-shadow" },
+    { name: "Magmarex", key: "magmarex-shadow" },
+    { name: "Pawney", key: "pawney-shadow" },
+    { name: "Scorchhowl", key: "scorchhowl-shadow" },
+    { name: "Sherro", key: "sherro-shadow" },
+    { name: "Stellarys", key: "stellarys-shadow" },
+    { name: "Thornblade", key: "thornblade-shadow" },
+    { name: "Turbo", key: "turbo-shadow" },
+    { name: "Witchin", key: "witchin-shadow" },
+  ];
+  function eggIcon(item) {
+    var a = findAni(item.name);
+    var src = item.key ? (S.formeIcons || {})[item.key] : null;
+    if (!src && a) src = a.img;
+    return src;
+  }
+  function eggCard(item) {
+    var a = findAni(item.name);
+    var src = eggIcon(item);
+    var inner = '<span class="eggico">' +
+      (src ? '<img src="' + src + '" alt="" loading="lazy">' : "") + "</span>" +
+      "<b>" + esc(item.name) + "</b>";
+    return a ?
+      '<button type="button" class="anilink eggcard" data-ani="' + esc(a.name) + '">' + inner + "</button>" :
+      '<div class="eggcard">' + inner + "</div>";
+  }
+  function eggTrack(list, cls) {
+    var cards = list.map(eggCard).join("");
+    return '<div class="eggtrackwrap ' + cls + '"><div class="eggtrack">' + cards + cards + "</div></div>";
+  }
+
+  /* paliers de garantie d'éclosion */
+  var EGG_TIERS = [
+    { key: "elite", name: "Elite", desc: "Garantit un Score Potentiel Élite ou supérieur", color: "#A855F7" },
+    { key: "perfect", name: "Parfait", desc: "Garantit la meilleure note de Score Potentiel", color: "#F5B942" },
+    { key: "sparkling", name: "Sparkling", desc: "Garantit un Aniimo Sparkling chromatique", color: "#FF6EC7", pm: ["#FF6EC7", "#35E6D8", "#FFFFFF"] },
+    { key: "alpha", name: "Alpha", desc: "Garantit le puissant trait Alpha", color: "#D2453F" }
+  ];
+  function eggTierCard(t) {
+    var pm = t.pm ? ";--pm1:" + esc(t.pm[0]) + ";--pm2:" + esc(t.pm[1]) + ";--pm3:" + esc(t.pm[2]) : "";
+    return '<div class="eggtiercard' + (t.pm ? " prismatique" : "") + '" style="--rc:' + esc(t.color) + pm + '">' +
+      '<b class="eggtiername">' + esc(t.name) + '</b>' +
+      '<p class="eggtierdesc">' + esc(t.desc) + '</p>' +
+      '</div>';
+  }
+  function eggTiersPanel() {
+    return '<div class="leytitle">' + (S.eggsIcon ? '<img src="' + S.eggsIcon + '" alt="" class="leytitleico">' : "") +
+      skHead("Les oeufs") + "</div>" +
+      '<div class="eggtiergrid">' + EGG_TIERS.map(eggTierCard).join("") + "</div>";
+  }
+
+  function oeufsPanel() {
+    return '<div class="oeufswrap">' +
+      '<div class="ctrtitle">' + skHead("Comment fonctionne l'éclosion ?") + "</div>" +
+      goldNote("À savoir", "Seuls Aniipod Ultra et le Sparkling Cube portent une garantie d'éclosion – alors gardez ceux pour les œufs qui vous tiennent à cœur.") +
+      '<div class="eggsteps' + animClass("informations:oeufs") + '">' + HATCH_STEPS.map(eggStepCard).join("") + "</div>" +
+      eggTiersPanel() +
+      '<div class="ctrtitle">' + skHead("Œufs d'ombrage – la forme de l'ombre") + "</div>" +
+      eggTrack(SHADOW_EGGS, "ombrage") +
+      "</div>";
   }
 
   /* ================= Aniipods ================= */
@@ -4227,15 +4555,9 @@
       desc: "Le premier produit amélioré de la série Aniipod, conçu pour aider Pathfinders à attraper Aniimo avec plus de facilité." },
     { key: "aniipodTrace", name: "Aniipod Trace", rar: "epique",
       desc: "Un dispositif de capture Aniimo équipé d’un système de verrouillage à l’œil d’aigle qui suit automatiquement Aniimo à proximité après avoir été jeté." },
-    { key: "aniepodeLegendaire", name: "Aniépode légendaire", rar: "epique",
-      desc: "Polaris Institute a créé cet Aniipod spécial en utilisant l’énergie tirée de Pearl Cascade. Il peut stabiliser l’énergie chaotique à l’intérieur de Vein Rifts, transformant le pouvoir violent en un flux doux qui apaise l’évacuation de l’animo légendaire et aide les Pathfinders à former un lien avec eux." },
-    { key: "aniopodeNicole", name: "L’aniopode de Nicole", rar: "epique",
-      desc: "La technologie de pliage de l’espace construite à l’intérieur lui permet de contenir un vaste espace écologique pour que l’Aniimo puisse habiter." },
     { key: "tumbler", name: "Tumbler", rar: "epique",
       desc: "Un produit de spécialité de la série Aniipod, inspiré de Nimbi roulant sur des pentes herbeuses." },
     { key: "aniipod", name: "Aniipod", rar: "rare",
-      desc: "Un dispositif pour attraper, équiper et entraîner Aniimo. Les chercheurs de l’Institut Polaris l’ont développé en utilisant Lumintech après s’être inspirés des ruines de la civilisation de l’ancienne Idylle." },
-    { key: "aniipodEnseignement", name: "Aniipod pour l’enseignement", rar: "rare",
       desc: "Un dispositif pour attraper, équiper et entraîner Aniimo. Les chercheurs de l’Institut Polaris l’ont développé en utilisant Lumintech après s’être inspirés des ruines de la civilisation de l’ancienne Idylle." }
   ];
   var ANIIPOD_RAR_DEFAULT = {
@@ -4248,12 +4570,12 @@
     if (!S.itemRarities) S.itemRarities = JSON.parse(JSON.stringify(ANIIPOD_RAR_DEFAULT));
     return S.itemRarities;
   }
-  function itmCard(it) {
+  function itmCard(it, i) {
     var R = itemRarities(), r = R[it.rar] || R.rare;
     var img = (S.aniipodIcons || {})[it.key];
     var pm = it.rar === "prismatique" ?
       ";--pm1:" + esc(r.pm1 || "#FF6EC7") + ";--pm2:" + esc(r.pm2 || "#35E6D8") + ";--pm3:" + esc(r.pm3 || "#FFFFFF") : "";
-    return '<div class="itmcard ' + it.rar + '" style="--rc:' + esc(r.color) + pm + '">' +
+    return '<div class="itmcard ' + it.rar + ' fxi" style="--rc:' + esc(r.color) + pm + ';--i:' + i + '">' +
       (img ? '<img class="itmicon" src="' + img + '" alt="" loading="lazy">' : "") +
       '<b class="itmname">' + esc(it.name) + '</b>' +
       '<span class="itmrare">' + esc(r.label) + '</span>' +
@@ -4267,9 +4589,9 @@
     });
     return '<div class="scorewrap">' +
       '<div class="elemtitlewrap">' + skHead("Les Aniipods") + '</div>' +
-      '<p class="scoreintro">Aniimo a 11 objets de capture. Ils couvrent 3 niveaux de rareté, de Rare jusqu’à Prismatic. Les plus rares incluent Sparkling Cube.</p>' +
+      '<p class="scoreintro">Aniimo a 8 objets de capture. Ils couvrent 3 niveaux de rareté, de Rare jusqu’à Prismatic. Les plus rares incluent Sparkling Cube.</p>' +
       '<p class="brqdesc">Les valeurs peuvent changer avant le lancement.</p>' +
-      '<div class="itmgrid">' + sorted.map(itmCard).join("") + '</div>' +
+      '<div class="itmgrid' + animClass("informations:aniipods") + '">' + sorted.map(itmCard).join("") + '</div>' +
       '</div>';
   }
 
@@ -4280,20 +4602,47 @@
     del: { label: "Suppression", cls: "del" }
   };
   var PATCHNOTES = [
-    { version: "0.2", date: "25 – 26 août 2026", changes: [
+    { version: "0.2", date: "29 août 2026", changes: [
       { t: "add", txt: "Nouvelle page d’Accueil : journal des mises à jour du site (Devblog) avec un carré par version, visible dès l’arrivée." },
       { t: "add", txt: "Informations > Raretés : section « Score Potentiel » avec les 4 paliers de rareté et leurs cotes d’attrapage." },
       { t: "add", txt: "Informations > Aniipods : les 11 objets de capture du jeu, classés par rareté (Rare, Épique, Légendaire, Prismatique)." },
-      { t: "add", txt: "Informations > Éléments : matchups de type et roster complet des Aniimo pour chacun des 9 éléments, avec mascottes animées." }
+      { t: "add", txt: "Informations > Éléments : matchups de type et roster complet des Aniimo pour chacun des 9 éléments, avec mascottes animées." },
+      { t: "add", txt: "Ajout d’une page d’Accueil." },
+      { t: "add", txt: "Ajout d’un dépliant dans la Team « Contre un Élément »." },
+      { t: "add", txt: "Ajout du contenu dans Informations > Braquage d’Œuf." },
+      { t: "add", txt: "Ajout du contenu dans Informations > Éléments." },
+      { t: "add", txt: "Ajout du contenu dans Informations > Raretés." },
+      { t: "add", txt: "Ajout du contenu dans Informations > Aniipods." },
+      { t: "add", txt: "Ajout du contenu dans Informations > Météo & Prismana." },
+      { t: "add", txt: "Ajout du contenu dans Informations > Formes Régionales." },
+      { t: "add", txt: "Ajout du contenu dans Informations > Œufs & Éclosions." },
+      { t: "del", txt: "Suppression de certaines informations inutiles." },
+      { t: "del", txt: "Suppression des catégories « Rôles » et « Statistiques »." },
+      { t: "del", txt: "Suppression de la catégorie « Composer moi-même »." },
+      { t: "mod", txt: "Modification de la catégorie « Tiers List »." },
+      { t: "mod", txt: "Modification de la catégorie « Métiers Aniimo »." },
+      { t: "mod", txt: "Modification de l’affichage des icônes d’Aniimo dans la catégorie « Tous les Aniimos »." },
+      { t: "mod", txt: "Modification dans Team « Composer moi-même » : la composition est désormais libre." }
     ] },
     { version: "0.1", date: "23 – 24 août 2026", changes: [
-      { t: "add", txt: "Lancement du site : fiches complètes des 96 Aniimo (statistiques, éléments, rôles, formes) et thème visuel jour/nuit." },
-      { t: "add", txt: "Tiers List : création de listes personnalisées par glisser-déposer, partage par code entre joueurs, et vote officiel communautaire." },
-      { t: "add", txt: "Team : composeur d’équipe manuel avec sélection des 4 membres et de l’Aniimo principal." },
-      { t: "add", txt: "Abilités : détail des capacités actives et passives de chaque Aniimo." },
-      { t: "add", txt: "Les compétences : classement des Aniimo par score de puissance." },
-      { t: "add", txt: "Métiers Aniimo : présentation des différents métiers disponibles." },
-      { t: "add", txt: "Panneau d’administration pour la gestion du contenu du site." }
+      { t: "add", txt: "Ajout d’une étiquette « Ultime » sur les compétences correspondantes." },
+      { t: "add", txt: "Ajout d’une étiquette « S Core » sur les compétences correspondantes." },
+      { t: "add", txt: "Ajout d’une étiquette « Légendaire » pour Irisalis dans sa description ainsi que dans les classements afin de mieux l’identifier." },
+      { t: "add", txt: "Ajout de la catégorie « Informations »." },
+      { t: "add", txt: "Ajout d’un vote pour les Tier Lists créées par les utilisateurs." },
+      { t: "add", txt: "Ajout d’un panneau affichant les contre-éléments." },
+      { t: "add", txt: "Ajout de catégories dans Informations : Rôles, Raretés, Formes, Aniipods, Statistiques et Éléments." },
+      { t: "del", txt: "Suppression des descriptions dans les Tier Lists." },
+      { t: "del", txt: "Suppression de « Team automatique » dans la catégorie Team." },
+      { t: "del", txt: "Suppression d’Irisalis dans l’arbre d’évolution." },
+      { t: "del", txt: "Suppression des « Rangs 1/4 » à « Rangs 4/4 » dans les métiers Loisir, Artisanat, Parfumerie et Portage." },
+      { t: "del", txt: "Suppression des noms en anglais dans les métiers." },
+      { t: "del", txt: "Suppression de « Soin » dans la recherche par Type." },
+      { t: "del", txt: "Suppression de l’information « Meilleur coup » ainsi que de la recherche par « Meilleur coup » dans la catégorie « Les Compétences »." },
+      { t: "mod", txt: "Modification de l’ordre de certaines catégories." },
+      { t: "mod", txt: "Modification des couleurs des Abilités." },
+      { t: "mod", txt: "Modification de la description des Teams lorsqu’on clique sur un Aniimo." },
+      { t: "mod", txt: "Modification des statistiques, des compétences et de la description d’Irisalis." }
     ] }
   ];
   function patchItem(c) {
@@ -4301,31 +4650,37 @@
     return '<div class="patchitem ' + p.cls + '"><span class="patchtag">' + esc(p.label) + '</span>' +
       '<p>' + esc(c.txt) + '</p></div>';
   }
-  /* carte repliée : image de fond « Devblog » + mascotte + numéro de version.
-     Un clic l'étend et réduit toutes les autres à une fine bande. */
-  function devCard(d, i) {
-    var open = view.devOpen === i;
-    var mascot = (S.devblog || {}).mascot;
-    return '<div class="devcard' + (open ? " open" : "") + '">' +
-      '<div class="devcollapsed" data-dev="' + i + '">' +
-      '<span class="devver">Patch v.' + esc(d.version) + '</span>' +
-      (mascot ? '<img class="devmascot" src="' + mascot + '" alt="">' : "") +
-      '<b class="devbrand">Devblog</b>' +
-      '</div>' +
-      '<div class="devexpanded">' +
-      '<div class="devexphead"><div><b>Patch v.' + esc(d.version) + '</b><span class="devdate">' + esc(d.date) + '</span></div>' +
-      '<button type="button" class="devclose" data-devclose>Réduire ✕</button></div>' +
-      '<div class="patchlist">' + d.changes.map(patchItem).join("") + '</div>' +
-      '</div></div>';
+  /* liste de gauche : une ligne miniature par version, la plus récente en haut. */
+  function devMini(d, i) {
+    var active = view.devOpen === i;
+    return '<div class="devmini fxi' + (active ? " active" : "") + '" data-dev="' + i + '" style="--i:' + i + '">' +
+      '<span class="devminiv">Patch v.' + esc(d.version) + '</span>' +
+      '<span class="devminid">' + esc(d.date) + '</span></div>';
+  }
+  /* panneau central : détail de la version sélectionnée. */
+  function devDetail(d) {
+    return '<div class="devmainhead"><b>Patch v.' + esc(d.version) + '</b>' +
+      '<span class="devdate">' + esc(d.date) + '</span></div>' +
+      '<div class="patchlist">' + d.changes.map(patchItem).join("") + '</div>';
   }
   function homePanel() {
+    var list = devList();
+    var idx = list[view.devOpen] ? view.devOpen : 0;
+    var cur = list[idx];
+    var mascot = (S.devblog || {}).mascot;
     return '<div class="homewrap">' +
       '<div class="homewarn' + (homeWarnHalo() ? "" : " nohalo") + '" style="--wc:' + esc(homeWarnColor()) + '">' +
       esc(homeWarn()) + '</div>' +
       '<div class="elemtitlewrap">' + skHead("Journal des mises à jour") + '</div>' +
-      '<div class="devblog' + (view.devOpen !== null ? " has-open" : "") + '">' +
-      devList().map(devCard).join("") + '</div>' +
-      '</div>';
+      '<div class="devblog">' +
+      '<div class="devlist' + animClass("accueil") + '">' + list.map(devMini).join("") + '</div>' +
+      '<div class="devmain' + (devOpening ? " fx fx-blurin" : "") + '"' +
+      (devOpening ? ' style="--dur:1.05s"' : "") + '>' +
+      (cur ? '<div class="fxi">' + devDetail(cur) + '</div>' : "") + '</div>' +
+      '<div class="devside">' +
+      (mascot ? '<img class="devmascot" src="' + mascot + '" alt="">' : "") +
+      '<b class="devbrand">Devblog</b>' +
+      '</div></div></div>';
   }
 
   function wipNote() {
@@ -4347,6 +4702,8 @@
         view.infoTag === "elements" ? elementsPanel() :
         view.infoTag === "raretes" ? raretesPanel() :
         view.infoTag === "aniipods" ? aniipodsPanel() :
+        view.infoTag === "formes" ? formesPanel() :
+        view.infoTag === "oeufs" ? oeufsPanel() :
         '<div class="wipwrap">' + wipNote() + "</div>";
       return h;
     }
@@ -4362,7 +4719,7 @@
   var TOPANI = null;
   function topBtn() {
     if (!TOPANI) {
-      var pool = S.aniimos.filter(function (a) { return a.img; });
+      var pool = activeAniimos().filter(function (a) { return a.img; });
       TOPANI = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
     }
     return '<button type="button" class="topbtn" id="gotop" aria-label="Remonter en haut">' +
@@ -4407,6 +4764,15 @@
   }
 
   function render() {
+    /* la page revient en haut à chaque interaction (clic sur une vignette, une
+       catégorie ou autre) — c'est le comportement voulu partout, sauf sur la
+       Tiers List : là, on reste statique (position mémorisée puis restaurée),
+       pour pouvoir sélectionner un Aniimo et faire défiler à la molette sans
+       perdre sa place pendant la création d'une liste. Certains raccourcis de
+       navigation (changement de catégorie, ouverture d'une liste partagée...)
+       forcent en plus explicitement window.scrollTo(0, 0) juste après cet
+       appel, y compris pour arriver en haut de la Tiers List elle-même. */
+    var sy = window.scrollY;
     var t = tabOf(view.tab), body;
     if (t.kind === "home") body = homePanel();
     else if (t.kind === "roster") body = viewRoster();
@@ -4429,6 +4795,7 @@
     applyStyle();
     applyProtect();
     saveView();
+    if (t.kind === "tier") window.scrollTo(0, sy); else window.scrollTo(0, 0);
     if (t.kind === "admin" && adminLocked()) return;
     if (t.kind === "admin" && view.adminSec === "aniimo" && view.pick) { fillForm(); bindSkillIcons(); }
     if (t.kind === "admin" && view.adminSec === "skico") bindSkillIcons();
@@ -4511,9 +4878,9 @@
       var tiers = {};
       if (mode === "copy") {
         var ranked = allScores().filter(function (r) { return isFinal(r.a); });
-        var best = ranked.length ? ranked[0].s : 0;
+        var bestMap = groupBestOf(ranked);
         ranked.forEach(function (r) {
-          var b = tFix()[r.a.name] ? bandByKey(tFix()[r.a.name]) : tierOf(r.s, best);
+          var b = tFix()[r.a.name] ? bandByKey(tFix()[r.a.name]) : tierOf(r.s, bestMap[grpOf(r.a.role).key] || 0);
           if (b) tiers[r.a.name] = b.k;
         });
       }
@@ -4521,7 +4888,7 @@
       tLists().push(l);
       view.tcreate = false; view.tier = "L:" + l.id;
       persist("Tiers list créée");
-      render(); window.scrollTo(0, 0);
+      render();
     };
 
     on("tsave", "onclick", function () {
@@ -4673,7 +5040,13 @@
         /* la liste complète se lit dans l'ordre du jeu, par numéro */
         if (t === "tous" && view.tab !== "tous") { view.sort = "no"; view.dir = 1; }
         else if (t !== "puissance" && view.tab === "puissance") { view.sort = "atk"; view.dir = -1; }
-        view.tab = t; animate = true; render(); animate = false; window.scrollTo(0, 0);
+        /* Informations : toujours revenir sur le premier sous-onglet (Raretés) en y entrant */
+        if (t === "informations" && view.tab !== "informations") view.infoTag = "raretes";
+        view.tab = t; animate = true; devOpening = t === "accueil"; render(); animate = false; devOpening = false; window.scrollTo(0, 0);
+        /* changement de catégorie = petite vérification en arrière-plan qu'il n'y a
+           pas eu de publication plus récente entre-temps, sans jamais bloquer/ralentir
+           la navigation (la page a déjà changé au-dessus, avant même cet appel) */
+        fetchPublished(); fetchLive();
       };
     });
     document.querySelectorAll("th[data-sort]").forEach(function (h) {
@@ -4730,38 +5103,33 @@
     document.querySelectorAll("[data-infotag]").forEach(function (b) {
       b.onclick = function () {
         view.infoTag = b.dataset.infotag;
-        render();
+        animate = true; render(); animate = false;
+      };
+    });
+    document.querySelectorAll("[data-scrollto]").forEach(function (b) {
+      b.onclick = function () {
+        var el = document.getElementById(b.dataset.scrollto);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       };
     });
     document.querySelectorAll("[data-etinfo]").forEach(function (b) {
       b.onclick = function (ev) {
         ev.stopPropagation();
         var k = b.dataset.etinfo;
-        var sy = window.scrollY;
         view.etInfoOpen = view.etInfoOpen === k ? null : k;
         render();
-        window.scrollTo(0, sy);
       };
     });
     document.querySelectorAll("[data-eleminfo]").forEach(function (b) {
       b.onclick = function () {
-        var sy = window.scrollY;
         view.elemInfo = b.dataset.eleminfo;
-        render();
-        window.scrollTo(0, sy);
+        animate = true; render(); animate = false;
       };
     });
     document.querySelectorAll("[data-dev]").forEach(function (b) {
       b.onclick = function () {
         view.devOpen = parseInt(b.dataset.dev, 10);
-        render();
-      };
-    });
-    document.querySelectorAll("[data-devclose]").forEach(function (b) {
-      b.onclick = function (e) {
-        e.stopPropagation();
-        view.devOpen = null;
-        render();
+        devOpening = true; render(); devOpening = false;
       };
     });
     document.querySelectorAll("[data-mode]").forEach(function (b) {
@@ -4810,15 +5178,18 @@
     } else { document.onclick = null; }
 
     document.querySelectorAll("[data-ani]").forEach(function (b) {
-      b.onclick = function (e) { e.stopPropagation(); view.detail = b.dataset.ani; render(); };
+      b.onclick = function (e) {
+        e.stopPropagation(); view.detail = b.dataset.ani;
+        detailOpening = true; render(); detailOpening = false;
+      };
     });
     document.querySelectorAll("[data-close]").forEach(function (b) {
-      b.onclick = function () { view.detail = null; render(); };
+      b.onclick = closeDetail;
     });
     document.querySelectorAll("[data-tier]").forEach(function (b) {
       b.onclick = function () {
         view.tier = b.dataset.tier; view.tcreate = false; view.tpick = null;
-        animate = true; render(); animate = false; window.scrollTo(0, 0);
+        animate = true; render(); animate = false;
       };
     });
     wireTier();
@@ -4926,9 +5297,11 @@
         S.jobs.splice(+b.dataset.jbdel, 1);
         S.aniimos.forEach(function (a) {
           a.jobs = (a.jobs || []).filter(function (k) { return k !== j.key; });
-          a.jobLevel = a.jobs.length ? Math.max.apply(null, a.jobs.map(function (k) {
+          if (!a.jobs.length) { a.jobLevel = null; return; }
+          var jlMax = Math.max.apply(null, a.jobs.map(function (k) {
             var jj = jobOf(k); return jj ? jj.max : 0;
-          })) : null;
+          }));
+          if (a.jobLevel > jlMax) a.jobLevel = jlMax;
         });
         persist("Métier supprimé"); render();
       };
@@ -4951,9 +5324,11 @@
         });
       });
       S.aniimos.forEach(function (a) {
-        a.jobLevel = (a.jobs && a.jobs.length) ? Math.max.apply(null, a.jobs.map(function (k) {
+        if (!a.jobs || !a.jobs.length) { a.jobLevel = null; return; }
+        var jlMax = Math.max.apply(null, a.jobs.map(function (k) {
           var j = jobOf(k); return j ? j.max : 0;
-        })) : null;
+        }));
+        if (a.jobLevel > jlMax) a.jobLevel = jlMax;
       });
       persist("Métiers enregistrés"); render();
     });
@@ -5105,6 +5480,7 @@
     document.querySelectorAll("[data-job]").forEach(function (c) {
       c.checked = (a.jobs || []).indexOf(c.dataset.job) >= 0;
     });
+    if (g("a-joblevel")) g("a-joblevel").value = a.jobLevel || "";
     var box = document.getElementById("skills");
     if (box) { box.innerHTML = ""; (a.skills || []).forEach(function (s) { addSkillRow(s.n, s.m); }); }
   }
@@ -5138,7 +5514,13 @@
       if (x === "parfumerie") return -1; if (y === "parfumerie") return 1;
       return (jobOf(x) ? jobOf(x).rank : 9) - (jobOf(y) ? jobOf(y).rank : 9);
     });
-    a.jobLevel = a.jobs.length ? Math.max.apply(null, a.jobs.map(function (k) { var j = jobOf(k); return j ? j.max : 0; })) : null;
+    if (!a.jobs.length) {
+      a.jobLevel = null;
+    } else {
+      var jlMax = Math.max.apply(null, a.jobs.map(function (k) { var j = jobOf(k); return j ? j.max : 0; }));
+      var jlVal = +g("a-joblevel").value || 0;
+      a.jobLevel = jlVal > 0 ? Math.min(jlVal, jlMax) : jlMax;
+    }
     a.skills = [];
     document.querySelectorAll("#skills .skillrow").forEach(function (r) {
       var ins = r.querySelectorAll("input");
@@ -5269,7 +5651,7 @@
   }
 
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && view.detail) { view.detail = null; render(); }
+    if (e.key === "Escape" && view.detail) closeDetail();
   });
 
   if (S.team && S.team.main) view.teamMain = S.team.main;
@@ -5292,7 +5674,7 @@
   }
   /* premier affichage : on joue l'effet de la catégorie, comme à l'arrivée
      sur celle-ci — c'est ce qu'on attend après un rafraîchissement. */
-  animate = true; render(); animate = false;
+  animate = true; devOpening = view.tab === "accueil"; render(); animate = false; devOpening = false;
   /* on va chercher les listes et votes sauvegardés en ligne (fonctions Netlify) */
   fetchLive();
   /* on va chercher la dernière version publiée en direct (si aucun brouillon local) */
