@@ -2,8 +2,16 @@
 """Assemble app.css + state.json + app.js -> artifact.html (contenu de page) et index.html (doc complet)."""
 import io, os
 
+import json
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 R = lambda p: io.open(os.path.join(HERE, p), encoding="utf-8").read()
+
+# Le roster est relu ici pour alimenter le contenu indexable : la liste des noms
+# se met donc a jour toute seule a chaque build, sans rien reecrire a la main.
+_ST = json.loads(R("state.json"))
+ANIIMO_NAMES = [a["name"] for a in _ST.get("aniimos", []) if not a.get("hidden")]
+ELEMENTS = ["Feu", "Eau", "Plante", "Glace", "Foudre", "Ténèbres", "Roche", "Vent", "Lumière"]
 
 # ---------------------------------------------------------------------------
 # Adresse publique du site. C'est la SEULE ligne a changer le jour ou tu passes
@@ -27,10 +35,15 @@ JSONLD = """{
       "@id": "%(url)s/#website",
       "url": "%(url)s/",
       "name": "Aniimo France",
-      "alternateName": ["Aniimo FR", "Aniimo France Codex", "Codex Aniimo FR"],
+      "alternateName": ["Aniimo FR", "Aniimo France Codex", "Codex Aniimo FR", "Aniimo Francophone",\n                        "Wiki Aniimo FR", "Aniimo France Discord", "Aniimo FR Discord"],
       "description": "%(desc)s",
       "inLanguage": "fr-FR",
-      "publisher": { "@id": "%(url)s/#org" }
+      "publisher": { "@id": "%(url)s/#org" },
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": { "@type": "EntryPoint", "urlTemplate": "%(url)s/?q={search_term_string}" },
+        "query-input": "required name=search_term_string"
+      }
     },
     {
       "@type": "Organization",
@@ -41,17 +54,38 @@ JSONLD = """{
       "logo": "%(url)s/favicon.png",
       "image": "%(url)s/og-image.jpg",
       "description": "Communauté française du jeu Aniimo : codex, guides et serveur Discord.",
-      "sameAs": ["%(discord)s"]
+      "sameAs": ["%(discord)s"],
+      "knowsAbout": ["Aniimo", "Tiers List Aniimo", "Aniimos", "compétences Aniimo",
+                     "métiers Aniimo", "Prismana", "Aniipods", "HomeLand"]
+    },
+    {
+      "@type": "CollectionPage",
+      "@id": "%(url)s/#codex",
+      "url": "%(url)s/",
+      "name": "Codex Aniimo France — tous les Aniimos en français",
+      "isPartOf": { "@id": "%(url)s/#website" },
+      "inLanguage": "fr-FR",
+      "about": { "@type": "VideoGame", "name": "Aniimo" },
+      "mainEntity": {
+        "@type": "ItemList",
+        "name": "Liste des Aniimos",
+        "numberOfItems": %(ncount)d,
+        "itemListElement": [%(items)s]
+      }
     }
   ]
-}""" % {"url": SITE_URL, "desc": DESC, "discord": DISCORD_URL}
+}""" % {"url": SITE_URL, "desc": DESC, "discord": DISCORD_URL,
+         "ncount": len(ANIIMO_NAMES),
+         "items": ", ".join(
+             '{"@type":"ListItem","position":%d,"name":%s}' % (i + 1, json.dumps(n, ensure_ascii=False))
+             for i, n in enumerate(ANIIMO_NAMES))}
 
 HEAD = """<title>%(title)s</title>
 <meta name="description" content="%(desc)s">
-<meta name="keywords" content="Aniimo France, Aniimo FR, Aniimo France Discord, Aniimo FR Discord, Aniimo, codex Aniimo, Tiers List Aniimo, Aniimo français, communauté Aniimo">
+<meta name="keywords" content="Aniimo France, Aniimo FR, Aniimo France Discord, Aniimo FR Discord, Aniimo, jeu Aniimo, Aniimo français, Aniimo francophone, codex Aniimo, wiki Aniimo FR, dex Aniimo, liste des Aniimos, Tiers List Aniimo, tier list Aniimo français, guide Aniimo FR, équipe Aniimo, meilleurs Aniimos, compétences Aniimo, métiers Aniimo, Prismana, Aniipods, HomeLand Aniimo, œufs Aniimo, éclosion Aniimo, communauté Aniimo France">
 <meta name="author" content="Aniimo France">
 <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
-<meta name="theme-color" content="#131119">
+<meta name="theme-color" content="#131119">\n<meta http-equiv="content-language" content="fr-FR">\n<link rel="alternate" hreflang="fr" href="%(url)s/">\n<link rel="alternate" hreflang="x-default" href="%(url)s/">
 <link rel="canonical" href="%(url)s/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Aniimo France">
@@ -77,26 +111,43 @@ HEAD = """<title>%(title)s</title>
 # Contenu lisible SANS JavaScript. Le site entier etant dessine par app.js, un
 # robot qui n'execute pas le script ne voyait jusqu'ici qu'une page vide : ce
 # bloc lui donne un vrai texte a indexer (titre, description, rubriques, Discord).
-NOSCRIPT = """<noscript><div style="max-width:760px;margin:0 auto;padding:32px 20px;font-family:system-ui,sans-serif;line-height:1.6">
+NOSCRIPT = """<noscript><div style="max-width:820px;margin:0 auto;padding:32px 20px;font-family:system-ui,sans-serif;line-height:1.6">
 <h1>Aniimo France — le codex francophone d'Aniimo</h1>
-<p><b>Aniimo France</b> (aussi appelé <b>Aniimo FR</b>) est le site français dédié au jeu Aniimo :
-fiches complètes des Aniimos, compétences et traits, Tiers List, métiers, équipes par élément,
-raretés, œufs et éclosions, météo et Prismana.</p>
-<h2>Rejoindre le Discord Aniimo France</h2>
-<p>La communauté française se retrouve sur le <a href="%(discord)s">Discord Aniimo France (Aniimo FR)</a>
-pour échanger guides, équipes et actualités du jeu.</p>
-<h2>Les rubriques du site</h2>
+<p><b>Aniimo France</b>, aussi appelé <b>Aniimo FR</b>, est le site français dédié au jeu <b>Aniimo</b> :
+le codex complet des Aniimos en français, leurs compétences, traits, Ultimes et S Core, la Tiers List
+de la communauté, les métiers, les équipes par élément, les raretés, les œufs et éclosions,
+la météo et les Prismana, les formes régionales, les Aniipods et le HomeLand.</p>
+
+<h2>Aniimo France Discord — rejoindre le serveur Aniimo FR</h2>
+<p>La communauté française et québécoise se retrouve sur le
+<a href="%(discord)s">Discord Aniimo France</a>. Que tu cherches
+« <b>Aniimo France Discord</b> » ou « <b>Aniimo FR Discord</b> », il s'agit du même serveur :
+celui de la communauté francophone d'Aniimo, où l'on échange guides, compositions d'équipe,
+astuces et actualités du jeu en français.</p>
+
+<h2>Que trouve-t-on sur Aniimo France ?</h2>
 <ul>
-<li>Tous les Aniimos — la liste complète avec statistiques</li>
-<li>Les compétences — traits, compétences, Ultimes et S Core</li>
-<li>Tiers List — le classement de la communauté</li>
-<li>Team — les meilleures équipes par élément</li>
-<li>Métiers Aniimo, Personnalités, HomeLand et Équipements</li>
-<li>Informations — raretés, éléments, Aniipods, météo et Prismana, formes régionales, œufs</li>
+<li><b>Tous les Aniimos</b> — la liste complète des %(ncount)d Aniimos avec leurs statistiques (PV, ATK, défenses, BREAK, REGEN)</li>
+<li><b>Les compétences</b> — traits, compétences, Ultimes et S Core de chaque Aniimo</li>
+<li><b>Tiers List</b> — le classement des meilleurs Aniimos, voté par la communauté française</li>
+<li><b>Team</b> — les meilleures équipes par élément et les règles de composition</li>
+<li><b>Métiers Aniimo</b> — Loisir, Artisanat, Parfumerie et Portage</li>
+<li><b>Personnalités</b> — les bonus de personnalité du Foyer et du HomeLand</li>
+<li><b>Informations</b> — raretés, éléments, Aniipods, météo &amp; Prismana, formes régionales, braquage d'œufs, éclosions</li>
+<li><b>Équipements</b> et <b>HomeLand</b></li>
 </ul>
-<p>Activez JavaScript pour afficher le site complet.</p>
+
+<h2>Les éléments d'Aniimo</h2>
+<p>%(elements)s.</p>
+
+<h2>Liste des Aniimos</h2>
+<p>%(names)s.</p>
+
+<p>Activez JavaScript pour afficher le site complet et interactif.</p>
 </div></noscript>
-""" % {"discord": DISCORD_URL}
+""" % {"discord": DISCORD_URL, "ncount": len(ANIIMO_NAMES),
+       "elements": ", ".join(ELEMENTS),
+       "names": ", ".join(ANIIMO_NAMES)}
 
 body = (HEAD
         + '<style id="appcss">' + R("app.css") + "</style>\n"
