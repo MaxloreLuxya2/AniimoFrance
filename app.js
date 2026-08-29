@@ -38,7 +38,7 @@
        toujours la version publiée dès que celle-ci change de version de données. */
     var DERIVED = ["sk2", "traitName", "traitDesc", "trait", "traitFr", "skills",
                    "tags", "synergy", "type", "typeGuess", "typeNote",
-                   "fin", "evo"];
+                   "fin", "evo", "ult", "sCore"];
     var stale = ((S.meta || {}).dataVersion || 0) !== ((PUB.meta || {}).dataVersion || 0);
     if (stale) {
       /* blocs entièrement pilotés par les sources : un vieux brouillon les
@@ -275,6 +275,38 @@
     ROLE_ORDER.forEach(function (r) { out = out.concat(roleScores(r)); });
     return out.sort(function (x, y) { return y.s - x.s || y.kit - x.kit || total(y.a) - total(x.a); });
   }
+  /* grilles de notation par rôle : part « statistiques » de la note.
+     Sorties du corps de roleScores() pour pouvoir aussi les appliquer à
+     l'ensemble du roster (tri de « Les compétences »), et pas seulement
+     aux Aniimo qui portent déjà ce rôle. */
+  var ROLE_F = {
+    DPS: [[hit, .45], [score, .25], [function (a) { return a.atk; }, .20], [total, .10]],
+    BREAK: [[function (a) { return a.brk; }, .55], [best, .20], [function (a) { return a.pdef + a.hp; }, .15], [total, .10]],
+    SUPPORT: [[function (a) { return a.regen; }, .30], [function (a) { return a.atk; }, .25], [function (a) { return a.brk; }, .25], [total, .20]],
+    REGEN: [[function (a) { return a.regen; }, .40], [function (a) { return a.hp; }, .25], [function (a) { return a.pdef + a.mdef; }, .20], [total, .15]],
+    HEAL: [[function (a) { return a.regen; }, .40], [function (a) { return a.hp; }, .35], [function (a) { return a.mdef; }, .15], [total, .10]]
+  };
+  /* note d'un rôle calculée sur TOUT le roster : renvoie un objet nom → note.
+     Recalculé à chaque appel (le roster est modifiable dans l'admin) mais
+     appelé une seule fois par tri, jamais dans le comparateur. */
+  function allRoleScores(role) {
+    var list = activeAniimos();
+    var out = {};
+    if (!list.length) return out;
+    var F = ROLE_F[role] || [[total, 1]];
+    var ranges = F.map(function (p) {
+      var vs = list.map(p[0]);
+      return [Math.min.apply(null, vs), Math.max.apply(null, vs)];
+    });
+    var kits = list.map(function (a) { return kitScore(a, role); });
+    var kmin = Math.min.apply(null, kits), kmax = Math.max.apply(null, kits);
+    list.forEach(function (a, idx) {
+      var st = 0;
+      F.forEach(function (p, i) { st += norm(p[0](a), ranges[i][0], ranges[i][1]) * p[1]; });
+      out[a.name] = Math.round(st * 0.55 + norm(kits[idx], kmin, kmax) * 0.45);
+    });
+    return out;
+  }
   function roleScores(role) {
     if (role === "ALL") return allScores();
     var list = activeAniimos().filter(function (a) { return a.role === role; });
@@ -283,13 +315,7 @@
       var vs = list.map(f);
       return [Math.min.apply(null, vs), Math.max.apply(null, vs)];
     }
-    var F = {
-      DPS: [[hit, .45], [score, .25], [function (a) { return a.atk; }, .20], [total, .10]],
-      BREAK: [[function (a) { return a.brk; }, .55], [best, .20], [function (a) { return a.pdef + a.hp; }, .15], [total, .10]],
-      SUPPORT: [[function (a) { return a.regen; }, .30], [function (a) { return a.atk; }, .25], [function (a) { return a.brk; }, .25], [total, .20]],
-      REGEN: [[function (a) { return a.regen; }, .40], [function (a) { return a.hp; }, .25], [function (a) { return a.pdef + a.mdef; }, .20], [total, .15]],
-      HEAL: [[function (a) { return a.regen; }, .40], [function (a) { return a.hp; }, .35], [function (a) { return a.mdef; }, .15], [total, .10]]
-    }[role] || [[total, 1]];
+    var F = ROLE_F[role] || [[total, 1]];
     var ranges = F.map(function (p) { return rng(p[0]); });
     var kits = list.map(function (a) { return kitScore(a, role); });
     var kmin = Math.min.apply(null, kits), kmax = Math.max.apply(null, kits);
@@ -372,7 +398,7 @@
     { id: "tiers", label: "Tiers List", kind: "tier", grp: "Fiches" },
     { id: "team", label: "Team", kind: "team", grp: "Fiches" },
     { id: "equipements", label: "Equipements", kind: "wip", grp: "Fiches" },
-    { id: "abilites", label: "Abilités", kind: "abil", grp: "Fiches" },
+    { id: "abilites", label: "Personnalités", kind: "abil", grp: "Fiches" },
     { id: "metiers", label: "Métiers Aniimo", kind: "jobs", grp: "Fiches" },
     { id: "homeland", label: "HomeLand", kind: "wip", grp: "Fiches" },
     { id: "admin", label: "Panneau admin", kind: "admin", grp: "Gestion" }
@@ -414,6 +440,12 @@
       mdef: function (a) { return a.mdef; }, brk: function (a) { return a.brk; }, regen: function (a) { return a.regen; },
       total: total, score: score, best: best, dmg: hit
     }[view.sort] || function (a) { return a.atk; };
+    /* tris « Max. … » : note du rôle appliquée à tout le roster. La table des
+       notes est construite ici, une seule fois, puis simplement consultée. */
+    if (String(view.sort).indexOf("max:") === 0) {
+      var mscores = allRoleScores(String(view.sort).slice(4));
+      get = function (a) { return mscores[a.name] || 0; };
+    }
     var dir = view.dir;
     list.sort(function (x, y) {
       var A = get(x), B = get(y);
@@ -440,7 +472,7 @@
       '<div class="field"><label for="q">Chercher</label><input id="q" type="search" placeholder="nom, compétence…" value="' + esc(view.q) + '"></div>' +
       '<div class="field"><label for="fe">Élément</label><select id="fe"><option value="">tous</option>' + els + "</select></div>" +
       (opts.noRole ? "" : '<div class="field"><label for="fr">Rôle</label><select id="fr"><option value="">tous</option>' + rls + "</select></div>") +
-      '<div class="field"><label for="fj">Métier</label><select id="fj"><option value="">tous</option>' + jbs + "</select></div>" +
+      (opts.noJob ? "" : '<div class="field"><label for="fj">Métier</label><select id="fj"><option value="">tous</option>' + jbs + "</select></div>") +
       '<div class="field"><label for="ft">Type</label><select id="ft"><option value="">tous</option>' + tps + "</select></div>" +
       '<button class="btn" id="reset">Réinitialiser</button></div>';
   }
@@ -473,17 +505,22 @@
   }
 
   /* ---------------- fiche : puissance ---------------- */
-  var POW_SORTS = [["score", "Score des 3 meilleures"], ["best", "Compétence la plus puissante"],
-    ["name", "Nom"]];
+  var POW_SORTS = [["max:DPS", "Max. attaques"], ["max:BREAK", "Max. Break"],
+    ["max:REGEN", "Max. Regen"], ["max:HEAL", "Max. Soin"],
+    ["max:SUPPORT", "Max. Support"], ["score", "Max. Compétences"]];
 
   function viewPower() {
-    if (["score", "best", "name"].indexOf(view.sort) < 0) { view.sort = "score"; view.dir = -1; }
+    var POWKEYS = POW_SORTS.map(function (s) { return s[0]; });
+    if (POWKEYS.indexOf(view.sort) < 0) { view.sort = POWKEYS[0]; view.dir = -1; }
+    /* le filtre Métier n'est pas proposé ici : on le relâche pour qu'un choix
+       fait ailleurs ne restreigne pas la liste sans commande visible */
+    view.job = "";
     var list = rows(null);
-    var maxScore = Math.max.apply(null, activeAniimos().map(score));
     var h = '<div class="head"><h1>Les compétences</h1><span class="count">' + list.length + " / " +
       activeAniimos().length + "</span>" + tipNote(TIP_CLICK, "right") + "</div>" +
-      '<p class="sub">Score = somme des 3 compétences les plus puissantes (valeur « Might » du jeu).</p>' +
-      toolbar({}) +
+      '<p class="sub">Le trait et les compétences de chaque Aniimo, avec leur puissance ' +
+      "(valeur « Might » du jeu) et leur coût en EP.</p>" +
+      toolbar({ noJob: true }) +
       '<div class="toolbar" style="margin-top:-6px"><div class="field"><label for="fs">Trier par</label>' +
       '<select id="fs">' + POW_SORTS.map(function (s) {
         return '<option value="' + s[0] + '"' + (view.sort === s[0] ? " selected" : "") + ">" + s[1] + "</option>";
@@ -497,11 +534,6 @@
         '<div class="powhead"><span class="pos">' + (i + 1) + "</span>" + aniLink(a, icon(a, 44)) +
         '<div class="pi"><b>' + aniLink(a, nameHtml(a)) + '</b><div class="chips">' + a.elems.map(elemChip).join(" ") +
         roleChip(a.role) + typeChip(a) + (a.legendary ? '<span class="chip legendary">Légendaire</span>' : (a.starter ? '<span class="chip starter">Starter</span>' : "")) + "</div></div></div>" +
-        '<div class="powstats">' +
-        '<div><span class="lbl">Score</span><b>' + score(a) + "</b></div>" +
-        '<div><span class="lbl">ATK</span><b>' + a.atk + "</b></div></div>" +
-        '<span class="bar big"><i style="width:' + Math.max(3, Math.round(score(a) / maxScore * 100)) +
-        '%;background:var(--accent)"></i></span>' +
         skBlocks(a, sk) +
         "</article>";
     });
@@ -534,11 +566,13 @@
         return { n: s.n, t: "", m: s.m ? String(s.m) : "", ep: "", d: "" };
       });
     }
-    var bs = bestSkill(a);
+    /* « Ultime » et « S Core » sont deux informations distinctes issues des sources :
+       a.ult = la compétence Ultime de l'Aniimo, a.sCore = celle qui porte une
+       amélioration (« Upgrade »). Aucune des deux n'est déduite de la puissance. */
     list.forEach(function (s) {
       h += '<div class="skrow"><div class="skmain">' + skIcon(s.t, skKey(a.name, s.n), s.n) +
         '<div class="skname"><b>' + esc(s.nf || s.n) + "</b>" +
-        (bs && s.n === bs.n ? '<span class="chip sm silver">Ultime</span>' : "") +
+        (a.ult && s.n === a.ult ? '<span class="chip sm silver">Ultime</span>' : "") +
         (a.sCore && s.n === a.sCore ? '<span class="chip sm gold">S Core</span>' : "") +
         (s.e && S.elements && S.elements[s.e] ? elemChip(s.e) : "") +
         (s.t ? '<span class="chip sm" style="background:' + (TYPE_COLOR[s.t] || "#888") + '">' + esc(s.t) + "</span>" : "") +
@@ -761,15 +795,15 @@
     return h + "</div>";
   }
 
-  /* ---------------- fiche : Abilités ---------------- */
+  /* ---------------- fiche : Personnalités ---------------- */
   function viewAbil() {
     var list = S.abilities || [];
-    if (!list.length) return '<div class="head"><h1>Abilités</h1></div><p class="sub">Aucune abilité pour le moment.</p>';
+    if (!list.length) return '<div class="head"><h1>Personnalités</h1></div><p class="sub">Aucune personnalité pour le moment.</p>';
     var cur = null;
     for (var i = 0; i < list.length; i++) if (list[i].key === view.abil) cur = list[i];
     if (!cur) { cur = list[0]; view.abil = cur.key; }
 
-    var h = '<div class="head"><h1>Abilités</h1><span class="count">' +
+    var h = '<div class="head"><h1>Personnalités</h1><span class="count">' +
       cur.items.length + " bonus</span></div>" +
       '<div class="modes">' + list.map(function (g) {
         return '<button class="btn' + (g.key === cur.key ? " primary" : "") +
@@ -2265,7 +2299,7 @@
     { g: "Contenu", k: "jobs", n: "Métiers",
       d: "Noms, couleurs, rendements et icônes",
       c: function () { return (S.jobs || []).length + " métiers"; } },
-    { g: "Contenu", k: "abil", n: "Abilités",
+    { g: "Contenu", k: "abil", n: "Personnalités",
       d: "Onglets HomeLand et Classique",
       c: function () { return (S.abilities || []).length + " onglets"; } },
     { g: "Contenu", k: "pages", n: "Catégories du site",
@@ -2377,7 +2411,7 @@
   /* ---------------- admin : catégories du site ---------------- */
   var PAGE_KINDS = [
     ["roster", "Liste d'Aniimo (tableau)"], ["power", "Compétences"],
-    ["abil", "Abilités"], ["jobs", "Métiers"], ["team", "Team"],
+    ["abil", "Personnalités"], ["jobs", "Métiers"], ["team", "Team"],
     ["tier", "Tiers List"], ["wip", "Rédaction en cours"],
     ["custom", "Page personnalisée (page libre)"],
     ["home", "Page d'accueil"], ["admin", "Panneau admin"]
@@ -2481,7 +2515,18 @@
   function homeWarnColor() { return S.homeWarnColor || "#ff3b3b"; }
   function homeWarnHalo() { return S.homeWarnHalo !== false; }
 
+  /* transforme un timestamp ms en couple (valeur date, valeur heure) pour
+     préremplir des <input type="date"> / <input type="time"> */
+  function launchAtParts() {
+    var d = new Date(launchAt());
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    return {
+      date: d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()),
+      time: pad(d.getHours()) + ":" + pad(d.getMinutes())
+    };
+  }
   function adminAccueil() {
+    var lp = launchAtParts();
     return '<div class="card"><h3>Page d\'accueil</h3>' +
       "<p>Le message d'avertissement affiché tout en haut de l'Accueil, avant le journal des mises à jour.</p>" +
       '<div class="f wide"><label>Texte du message</label>' +
@@ -2492,7 +2537,18 @@
       '> <span></span> Effet animé sur le contour</label></div>' +
       '<div class="actions" style="margin-top:10px">' +
       '<button class="btn primary" id="savehw">Enregistrer</button>' +
-      '<button class="btn" id="resethw">Revenir au message d\'origine</button></div></div>';
+      '<button class="btn" id="resethw">Revenir au message d\'origine</button></div></div>' +
+      '<div class="card" style="margin-top:14px"><h3>Compte à rebours</h3>' +
+      "<p>Le minuteur affiché à côté de l'avertissement, jusqu'à la date d'ouverture.</p>" +
+      '<div class="f wide"><label>Texte de l\'encadré</label>' +
+      '<input id="lttxt" value="' + esc(launchLabel()) + '"></div>' +
+      '<div class="row4 pickrow" style="margin-top:10px">' +
+      '<label class="f"><span>Date d\'ouverture</span><input type="date" id="ltdate" value="' + esc(lp.date) + '"></label>' +
+      '<label class="f"><span>Heure</span><input type="time" id="lttime" value="' + esc(lp.time) + '"></label>' +
+      "</div>" +
+      '<div class="actions" style="margin-top:10px">' +
+      '<button class="btn primary" id="savelt">Enregistrer</button>' +
+      '<button class="btn" id="resetlt">Revenir à la date d\'origine</button></div></div>';
   }
   function bindAdminAccueil() {
     on("savehw", "onclick", function () {
@@ -2504,6 +2560,22 @@
     on("resethw", "onclick", function () {
       S.homeWarn = null; S.homeWarnColor = null; S.homeWarnHalo = null;
       persist("Accueil réinitialisé"); render();
+    });
+    on("savelt", "onclick", function () {
+      var dv = document.getElementById("ltdate").value, tv = document.getElementById("lttime").value || "00:00";
+      if (dv) {
+        var parts = dv.split("-"), tparts = tv.split(":");
+        var d = new Date(+parts[0], +parts[1] - 1, +parts[2], +tparts[0], +tparts[1], 0);
+        if (!isNaN(d.getTime())) S.launchAt = d.getTime();
+      }
+      S.launchLabel = document.getElementById("lttxt").value.trim() || LAUNCH_LABEL_DEFAULT;
+      persist("Compte à rebours enregistré"); render();
+      if (view.tab === "accueil") bindLaunchTimer();
+    });
+    on("resetlt", "onclick", function () {
+      S.launchAt = null; S.launchLabel = null;
+      persist("Compte à rebours réinitialisé"); render();
+      if (view.tab === "accueil") bindLaunchTimer();
     });
   }
 
@@ -3492,7 +3564,7 @@
 
 
 
-  /* ---------------- admin : Abilités ---------------- */
+  /* ---------------- admin : Personnalités ---------------- */
   function adminAbil() {
     var groups = S.abilities || [];
     var h = "";
@@ -3521,7 +3593,7 @@
         '<button class="btn" type="button" data-abadd="' + gi + '">+ Nouvelle entrée</button></div></div>';
     });
     h += '<div class="actions" style="margin-top:12px">' +
-      '<button class="btn primary" id="saveabil">Enregistrer les Abilités</button>' +
+      '<button class="btn primary" id="saveabil">Enregistrer les Personnalités</button>' +
       '<button class="btn" id="addabg">+ Nouvel onglet</button></div>';
     return h;
   }
@@ -3538,7 +3610,7 @@
           tr.querySelectorAll("[data-ai]").forEach(function (el) { it[el.dataset.ai] = el.value.trim(); });
         });
       });
-      persist("Abilités enregistrées"); render();
+      persist("Personnalités enregistrées"); render();
     });
     document.querySelectorAll("[data-abadd]").forEach(function (b) {
       b.onclick = function () {
@@ -3803,7 +3875,7 @@
      et non plus l'instantané figé au moment du build : toute nouvelle rubrique —
      y compris une page personnalisée — apparaît ici automatiquement. */
   var FX_WHAT = {
-    roster: "les lignes du tableau", power: "les cartes de compétences", abil: "les cartes d'abilité",
+    roster: "les lignes du tableau", power: "les cartes de compétences", abil: "les cartes de personnalité",
     jobs: "les cartes de métier et de spécialité", team: "les cartes de l'équipe", tier: "les lignes du classement",
     wip: "l'illustration d'attente", home: "le journal des mises à jour", custom: "les blocs de la page",
     admin: "aucun effet"
@@ -4411,9 +4483,11 @@
      de base n'a pas (ex. Stellarys de base = Ténèbres, sa forme de Tempête de
      Pluie = Ténèbres/Eau) — repris des formes météo déjà déclarées plus haut. */
   var PRISM_ELEM_OVERRIDES = {
-    turbo: ["Vent", "Foudre"], stellarys: ["Ténèbres", "Eau"], thornblade: ["Plante", "Foudre"],
-    luminelle: ["Foudre", "Eau"], scorchhowl: ["Feu", "Foudre"], glynsera: ["Ténèbres", "Glace"],
-    sherro: ["Eau", "Foudre"], pawney: ["Ténèbres", "Glace"]
+    turbo: ["Vent", "Ténèbres"], stellarys: ["Ténèbres", "Glace"], thornblade: ["Plante", "Eau"],
+    glynsera: ["Lumière", "Glace"], blazen: ["Foudre", "Ténèbres"], cornet: ["Foudre", "Lumière"],
+    sherro: ["Eau", "Lumière"], ignitis: ["Ténèbres", "Feu"], glacy: ["Eau", "Lumière"],
+    grizbo: ["Roche", "Ténèbres"], luminelle: ["Foudre", "Lumière"], magmarex: ["Feu", "Ténèbres"],
+    glameep: ["Plante", "Ténèbres"]
   };
   function prismRow(name) {
     var a = findAni(name);
@@ -4675,9 +4749,15 @@
      l'encadré d'avertissement : totalement indépendant du reste de la mise en
      page (ne pousse ni ne décale rien), masqué sur les écrans trop étroits
      pour lui laisser de la place sans chevaucher quoi que ce soit. */
+  /* date/texte du compte à rebours : réglables dans l'admin (Accueil), avec des
+     valeurs d'origine si rien n'a encore été enregistré */
+  var LAUNCH_AT_DEFAULT = new Date(2026, 8, 16, 4, 0, 0).getTime();
+  var LAUNCH_LABEL_DEFAULT = "Ouverture d'Aniimo";
+  function launchAt() { return S.launchAt ? +S.launchAt : LAUNCH_AT_DEFAULT; }
+  function launchLabel() { return S.launchLabel != null ? S.launchLabel : LAUNCH_LABEL_DEFAULT; }
   function launchTimerBox() {
     return '<div class="launchtimer" aria-live="off">' +
-      '<span class="ltlabel">Ouverture d\'Aniimo</span>' +
+      '<span class="ltlabel">' + esc(launchLabel()) + '</span>' +
       '<div class="ltnums">' +
       '<div class="ltcell"><b data-lt="d">--</b><span>Jours</span></div>' +
       '<div class="ltcell"><b data-lt="h">--</b><span>Heures</span></div>' +
@@ -4685,7 +4765,6 @@
       '<div class="ltcell"><b data-lt="s">--</b><span>Sec</span></div>' +
       "</div></div>";
   }
-  var LAUNCH_AT = new Date(2026, 8, 16, 4, 0, 0).getTime();
   var launchTimerIv = null;
   function bindLaunchTimer() {
     if (launchTimerIv) { clearInterval(launchTimerIv); launchTimerIv = null; }
@@ -4695,7 +4774,7 @@
       mEl = box.querySelector('[data-lt="m"]'), sEl = box.querySelector('[data-lt="s"]');
     var pad = function (n) { return (n < 10 ? "0" : "") + n; };
     function tick() {
-      var diff = LAUNCH_AT - Date.now();
+      var diff = launchAt() - Date.now();
       if (diff <= 0) {
         dEl.textContent = hEl.textContent = mEl.textContent = sEl.textContent = "00";
         if (launchTimerIv) { clearInterval(launchTimerIv); launchTimerIv = null; }
